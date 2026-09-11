@@ -10,3 +10,7 @@ data/
 
 # Sorties de test
 coverage/
+
+# Archives de sauvegarde (contiennent la base et les pièces : jamais versionnées).
+sauvegardes/
+*.zip

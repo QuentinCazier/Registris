@@ -15,6 +15,12 @@
     "active-directory",
     "sqlite"
   ],
+  "homepage": "https://github.com/QuentinCazier/registris#readme",
+  "bugs": "https://github.com/QuentinCazier/registris/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QuentinCazier/registris.git"
+  },
   "license": "EUPL-1.2",
   "author": "Quentin Cazier",
   "type": "module",
@@ -22,6 +28,14 @@
   "bin": {
     "registris": "./src/cli.js"
   },
+  "files": [
+    "src",
+    "public",
+    "docs",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
   "scripts": {
     "start": "node src/cli.js servir",
     "init": "node src/cli.js init",
@@ -37,10 +51,10 @@
     "multer": "^1.4.5-lts.2",
     "nodemailer": "^9.0.3"
   },
-  "engines": {
-    "node": ">=22"
-  },
   "overrides": {
     "qs": "^6.15.4"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
