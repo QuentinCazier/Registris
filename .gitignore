@@ -1,0 +1,12 @@
+node_modules/
+.env
+
+# Données locales : base SQLite, pièces de preuve, logos téléversés.
+# Ne JAMAIS versionner de données réelles d'un établissement.
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Sorties de test
+coverage/
