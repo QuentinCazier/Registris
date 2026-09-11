@@ -1,9 +1,10 @@
 # Ressources de marque (public/)
 
-Ce dossier est servi tel quel à la racine du site. Déposez-y le logo de votre
-établissement : l'application le détecte et l'utilise dans la barre latérale, la
-page de connexion et l'onglet du navigateur. Sans fichier, elle affiche le
-pictogramme « clé » intégré.
+Ce dossier est servi tel quel à la racine du site. Il contient par défaut le
+logo de Registris (`logo.png`, `favicon.ico`, `apple-touch-icon.png`), utilisé
+dans la barre latérale, la page de connexion et l'onglet du navigateur.
+Remplacez ces fichiers par ceux de votre établissement pour personnaliser
+l'interface ; supprimez-les pour revenir au pictogramme « clé » intégré.
 
 | Fichier | Usage | Recommandation |
 |---|---|---|

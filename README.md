@@ -1,5 +1,7 @@
 # Registris
 
+![Registris : registre des habilitations et coffre à preuves d'audit pour les établissements publics de santé](docs/captures/banniere.png)
+
 **Registre des habilitations et coffre à preuves d'audit pour les établissements
 publics de santé.**
 
