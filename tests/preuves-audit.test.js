@@ -76,6 +76,50 @@ test('journal chaîné : intègre, puis rupture détectée après modification d
   assert.equal(audit.verifierChaine().valide, true);
 });
 
+test('état de chaîne : reprise au dernier contrôle complet, sans perdre la détection', () => {
+  const db = ouvrirDb();
+  assert.equal(audit.verifierChaine().valide, true);
+
+  // Sans point de reprise, l'affichage vérifie tout : correct, mais lent.
+  const vierge = audit.etatChaine();
+  assert.equal(vierge.valide, true);
+  assert.equal(vierge.complet, true, 'aucun contrôle enregistré : vérification complète');
+
+  audit.enregistrerControle('test', { valide: true });
+  const repris = audit.etatChaine();
+  assert.equal(repris.complet, false);
+  assert.equal(repris.nouvelles, 0, 'rien de neuf depuis le contrôle');
+  assert.equal(repris.entrees, audit.verifierChaine().entrees, 'le total reste celui du journal entier');
+
+  // Une écriture postérieure au point de reprise est bien contrôlée.
+  audit.tracer('test', 'habilitation:valider', { entite: 'habilitation', entiteId: h.id });
+  assert.equal(audit.etatChaine().nouvelles, 1);
+  const derniere = db.prepare('SELECT id, acteur FROM journal_audit ORDER BY id DESC LIMIT 1').get();
+  db.prepare('UPDATE journal_audit SET acteur = ? WHERE id = ?').run('pirate', derniere.id);
+  const rompu = audit.etatChaine();
+  assert.equal(rompu.valide, false, 'une retouche après la reprise reste vue à l’écran');
+  assert.equal(rompu.rupture, derniere.id);
+  db.prepare('UPDATE journal_audit SET acteur = ? WHERE id = ?').run(derniere.acteur, derniere.id);
+  assert.equal(audit.etatChaine().valide, true);
+
+  // Le point de reprise lui-même est contrôlé : on ne repart pas d'une entrée effacée.
+  const controle = audit.dernierControle();
+  const reprise = db.prepare('SELECT * FROM journal_audit WHERE id = ?').get(controle.dernier_id);
+  db.prepare('UPDATE journal_audit SET acteur = ? WHERE id = ?').run('pirate', reprise.id);
+  const casse = audit.etatChaine();
+  assert.equal(casse.valide, false);
+  assert.equal(casse.raison, 'point de reprise');
+  db.prepare('UPDATE journal_audit SET acteur = ? WHERE id = ?').run(reprise.acteur, reprise.id);
+
+  // Le prix assumé : une retouche antérieure attend le contrôle complet.
+  const ancienne = db.prepare('SELECT id, acteur FROM journal_audit ORDER BY id LIMIT 1').get();
+  db.prepare('UPDATE journal_audit SET acteur = ? WHERE id = ?').run('pirate', ancienne.id);
+  assert.equal(audit.etatChaine().valide, true, 'invisible à l’écran, c’est le compromis');
+  assert.equal(audit.verifierChaine().valide, false, 'mais le contrôle complet la voit');
+  db.prepare('UPDATE journal_audit SET acteur = ? WHERE id = ?').run(ancienne.acteur, ancienne.id);
+  assert.equal(audit.verifierChaine().valide, true);
+});
+
 test('journal : recherche texte et historique par entité', () => {
   assert.ok(audit.journal({ q: 'E12345' }).length >= 1);
   assert.equal(audit.journal({ q: 'zzz-inexistant' }).length, 0);

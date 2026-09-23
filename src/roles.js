@@ -1,12 +1,4 @@
-/**
- * Rôles et permissions.
- *
- *   admin        configure l'outil (catalogue, comptes, référentiels) et a tous les droits ;
- *   referent     référent d'une ou plusieurs applications : valide, exécute, révoque
- *                les habilitations de SON périmètre ;
- *   controleur   audit et lecture seule : journal, export du dossier de preuves ;
- *   utilisateur  agent standard : dépose des demandes, joint des preuves, suit les siennes.
- */
+// Rôles et permissions.
 
 export const ROLES = ['admin', 'referent', 'controleur', 'utilisateur'];
 
@@ -17,11 +9,10 @@ export const LIBELLES_ROLE = {
   utilisateur: 'Utilisateur',
 };
 
-// Matrice des permissions : action -> rôles autorisés. Pour le référent, le droit de
-// valider / exécuter / révoquer est de plus restreint à ses applications
-// (voir referentGereApplication).
+// action -> rôles autorisés ; le référent est en outre limité à ses applications.
 const PERMISSIONS = {
-  'habilitation:lire': ['admin', 'controleur', 'referent', 'utilisateur'],
+  // Lire le registre entier, c'est voir qui détient quel accès : pas un agent.
+  'habilitation:lire': ['admin', 'controleur', 'referent'],
   'habilitation:creer': ['admin', 'referent', 'utilisateur'],
   'habilitation:valider': ['admin', 'referent'],
   'habilitation:executer': ['admin', 'referent'],
@@ -36,19 +27,16 @@ const PERMISSIONS = {
 
 export const ACTIONS = Object.freeze(Object.keys(PERMISSIONS));
 
-/** Le rôle `role` a-t-il le droit d'effectuer `action` ? */
 export function peut(role, action) {
   if (!Object.hasOwn(PERMISSIONS, action)) return false;
   return PERMISSIONS[action].includes(role);
 }
 
-/** Middleware Express : exige une session authentifiée. */
 export function exigerAuth(req, res, next) {
   if (!req.session?.utilisateur) return res.redirect('/connexion');
   next();
 }
 
-/** Middleware Express : exige le droit d'effectuer `action`. */
 export function exigerDroit(action) {
   return (req, res, next) => {
     const role = req.session?.utilisateur?.role;
@@ -63,10 +51,7 @@ export function exigerDroit(action) {
   };
 }
 
-/**
- * Le référent gère-t-il cette application ? L'admin gère tout. Un référent dont le
- * périmètre vaut 'ALL' (cas LDAP sans périmètre fin) gère également tout.
- */
+// Un périmètre 'ALL' vaut toutes les applications : cas d'un LDAP sans périmètre fin.
 export function referentGereApplication(utilisateur, applicationId) {
   if (!utilisateur) return false;
   if (utilisateur.role === 'admin') return true;
@@ -76,14 +61,21 @@ export function referentGereApplication(utilisateur, applicationId) {
   return Array.isArray(portee) && portee.map(Number).includes(Number(applicationId));
 }
 
-/**
- * Déduit le rôle à partir des groupes de l'annuaire. Premier correspondant gagne,
- * par priorité décroissante. `mapping` = { admin, controleur, referent, utilisateur }
- * (fragments de noms de groupes, comparaison insensible à la casse).
- */
+// Nom du groupe (CN) tiré d'un DN, sinon la valeur telle quelle, en minuscules.
+const nomDeGroupe = (g) => {
+  const s = String(g ?? '').trim();
+  const m = /^cn=([^,]+)/i.exec(s);
+  return (m ? m[1] : s).trim().toLowerCase();
+};
+
+// mapping = nom exact (CN) ou DN de groupe par rôle, insensible à la casse ; le rôle le plus élevé gagne.
 export function roleDepuisGroupes(groupes, mapping) {
-  const possede = (nom) =>
-    Boolean(nom) && groupes.some((g) => String(g).toLowerCase().includes(nom.toLowerCase()));
+  const noms = new Set();
+  for (const g of groupes) {
+    noms.add(String(g ?? '').trim().toLowerCase());
+    noms.add(nomDeGroupe(g));
+  }
+  const possede = (voulu) => Boolean(voulu) && (noms.has(voulu.trim().toLowerCase()) || noms.has(nomDeGroupe(voulu)));
   if (possede(mapping.admin)) return 'admin';
   if (possede(mapping.controleur)) return 'controleur';
   if (possede(mapping.referent)) return 'referent';

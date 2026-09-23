@@ -1,8 +1,4 @@
-/**
- * Lecteur ZIP minimal (méthodes « stockée » et « deflate »), sans dépendance,
- * pour relire les archives de sauvegarde. L'archive est lue en mémoire : les
- * sauvegardes d'un établissement se comptent en dizaines ou centaines de Mo.
- */
+// Lecteur ZIP minimal (stockée, deflate), en mémoire, pour relire les sauvegardes.
 
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -11,10 +7,7 @@ const SIGNATURE_FIN = 0x06054b50;
 const SIGNATURE_CENTRALE = 0x02014b50;
 const SIGNATURE_LOCALE = 0x04034b50;
 
-/**
- * @param {Buffer|string} source contenu de l'archive ou chemin du fichier
- * @returns {Map<string, Buffer>} nom d'entrée vers contenu décompressé
- */
+// `source` : contenu de l'archive ou chemin. Renvoie une Map nom -> contenu.
 export function lireZip(source) {
   const tampon = Buffer.isBuffer(source) ? source : fs.readFileSync(source);
   let fin = -1;

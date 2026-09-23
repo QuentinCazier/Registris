@@ -1,19 +1,10 @@
-/**
- * Dossier de preuves pour l'auditeur. On colle la liste des matricules
- * échantillonnés (commissaires aux comptes, contrôle interne, RSSI), on obtient
- * un ZIP horodaté :
- *
- *   synthese.html   synthèse imprimable : par agent, chaque habilitation avec ses
- *                   dates, son demandeur, son historique tracé et ses pièces ;
- *   synthese.csv    la même chose en tableau, pour Excel ;
- *   integrite.txt   empreintes SHA-256 de chaque pièce et état de la chaîne d'audit ;
- *   <matricule>/…   les pièces de preuve, classées par matricule et habilitation.
- */
+// Dossier de preuves ZIP : synthese.html, synthese.csv, integrite.txt et les pièces par matricule.
 
 import archiver from 'archiver';
 
 import { config } from './config.js';
 import { ouvrirDb } from './db.js';
+import { fichierCsv } from './csv.js';
 import { habilitationsDeAgent, libelleUfs, LIB_STATUT } from './habilitations.js';
 import { cheminPreuve, verifierIntegrite } from './preuves.js';
 import { tracer, verifierChaine, historique } from './audit.js';
@@ -21,12 +12,11 @@ import { tracer, verifierChaine, historique } from './audit.js';
 const echap = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/** Découpe une saisie libre (une ligne, une virgule ou un espace par matricule). */
+// Un matricule par ligne, par virgule ou par espace.
 export function analyserMatricules(saisie) {
   return [...new Set(String(saisie ?? '').split(/[\s,;]+/).map((m) => m.trim()).filter(Boolean))];
 }
 
-/** Résout des matricules en agents + habilitations ; signale les introuvables. */
 export function resoudreMatricules(saisie) {
   const db = ouvrirDb();
   const trouves = [];
@@ -106,19 +96,17 @@ function synthese({ trouves, introuvables }, horodatage, chaine) {
 }
 
 function csv({ trouves }) {
-  const ligne = (cols) => cols.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';');
   const lignes = [
-    ligne(['matricule', 'nom', 'prenom', 'application', 'profil', 'uf', 'statut', 'date_demande',
-      'date_validation', 'date_realisation', 'date_revocation', 'demandeur', 'nb_preuves']),
+    ['matricule', 'nom', 'prenom', 'application', 'profil', 'uf', 'statut', 'date_demande',
+      'date_validation', 'date_realisation', 'date_revocation', 'demandeur', 'nb_preuves'],
   ];
   for (const a of trouves) {
     for (const h of a.habilitations) {
-      lignes.push(ligne([a.matricule, a.nom, a.prenom, h.app_libelle, h.role, libelleUfs(h), h.statut,
-        h.date_demande, h.date_validation, h.date_realisation, h.date_revocation, h.demandeur, h.nb_preuves]));
+      lignes.push([a.matricule, a.nom, a.prenom, h.app_libelle, h.role, libelleUfs(h), h.statut,
+        h.date_demande, h.date_validation, h.date_realisation, h.date_revocation, h.demandeur, h.nb_preuves]);
     }
   }
-  // BOM UTF-8 pour qu'Excel lise les accents.
-  return `﻿${lignes.join('\r\n')}\r\n`;
+  return fichierCsv(lignes);
 }
 
 function manifeste({ trouves }, horodatage, chaine) {
@@ -134,10 +122,7 @@ function manifeste({ trouves }, horodatage, chaine) {
   return lignes.join('\n') + '\n';
 }
 
-/**
- * Écrit le ZIP du dossier de preuves dans `sortie` (flux, typiquement la réponse
- * HTTP). Renvoie le résultat de la résolution des matricules.
- */
+// `sortie` est un flux, typiquement la réponse HTTP.
 export function genererDossierZip(acteur, saisie, sortie) {
   const resultat = resoudreMatricules(saisie);
   const horodatage = new Date().toISOString();

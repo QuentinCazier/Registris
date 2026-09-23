@@ -1,11 +1,4 @@
-/**
- * Coffre à preuves. Une pièce (mail .msg/.eml, capture d'écran, PDF) est stockée
- * sur disque sous un nom neutre, avec son empreinte SHA-256 calculée au dépôt. À
- * tout moment on peut re-calculer l'empreinte et prouver que la pièce n'a pas bougé.
- *
- * Les fichiers sont validés par extension ET par signature binaire (nombres
- * magiques) quand le format en possède une : un exécutable renommé en .pdf est refusé.
- */
+// Coffre à preuves : nom de stockage neutre, empreinte SHA-256, validation par extension et signature.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -28,10 +21,7 @@ const FORMATS = {
 
 export const EXTENSIONS_ACCEPTEES = Object.freeze(Object.keys(FORMATS));
 
-/**
- * Vérifie qu'un fichier est acceptable comme preuve. Lève une erreur explicite sinon.
- * Renvoie le type métier déduit.
- */
+// Lève si le fichier n'est pas acceptable, sinon renvoie le type métier déduit.
 export function valider({ tampon, nom }) {
   if (!tampon || !tampon.length) throw new Error('Fichier vide.');
   if (tampon.length > config.tailleMaxPreuve) {
@@ -59,7 +49,6 @@ function ecrire(prefixe, tampon, nom) {
   return { sha256, nomStocke };
 }
 
-/** Joint une pièce à une habilitation. Renvoie la ligne `preuves` créée. */
 export function ajouterPreuve(acteur, habilitationId, { tampon, nom }) {
   const type = valider({ tampon, nom });
   const db = ouvrirDb();
@@ -91,7 +80,6 @@ export function cheminPreuve(preuve) {
   return path.join(config.preuvesDir, path.basename(preuve.fichier));
 }
 
-/** Recalcule l'empreinte d'une pièce stockée et la compare à celle enregistrée. */
 export function verifierIntegrite(preuve) {
   const chemin = cheminPreuve(preuve);
   if (!fs.existsSync(chemin)) return { intacte: false, raison: 'fichier absent' };
@@ -99,7 +87,7 @@ export function verifierIntegrite(preuve) {
   return { intacte: sha256 === preuve.sha256, sha256 };
 }
 
-/** Passe en revue tout le coffre ; renvoie les pièces altérées ou manquantes. */
+// Renvoie les pièces altérées ou manquantes.
 export function auditerCoffre() {
   const preuves = ouvrirDb().prepare('SELECT * FROM preuves ORDER BY id').all();
   const anomalies = [];

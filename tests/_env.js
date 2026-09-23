@@ -1,7 +1,5 @@
-/**
- * Isole chaque fichier de test dans une base et un coffre temporaires. À importer
- * en premier : la configuration lit l'environnement au chargement.
- */
+// Base et coffre temporaires par fichier de test. À importer en premier : la
+// configuration lit l'environnement au chargement.
 
 import fs from 'node:fs';
 import os from 'node:os';

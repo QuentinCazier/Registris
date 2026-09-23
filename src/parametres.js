@@ -1,7 +1,4 @@
-/**
- * Paramètres clé/valeur gérés par l'administrateur. Aujourd'hui : le routage des
- * notifications (adresse destinataire des nouvelles demandes, par catégorie).
- */
+// Paramètres clé/valeur : le routage des notifications par catégorie.
 
 import { ouvrirDb } from './db.js';
 import { tracer } from './audit.js';
@@ -23,7 +20,6 @@ export function setParametre(acteur, cle, valeur) {
 
 const cleRoutage = (categorieId) => `routage:${Number(categorieId)}`;
 
-/** Adresse destinataire des nouvelles demandes d'une catégorie ('' si aucune). */
 export function getRoutage(categorieId) {
   if (!categorieId) return '';
   return getParametre(cleRoutage(categorieId), '');

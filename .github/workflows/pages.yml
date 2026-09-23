@@ -1,0 +1,47 @@
+name: Site de présentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/captures/**'
+      - 'public/polices/**'
+      - 'public/marque.svg'
+      - 'public/logo.png'
+      - 'public/favicon.ico'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publier:
+    # Pages n'existe que pour un dépôt public : le travail est ignoré tant que le dépôt est privé.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemblage du site
+        run: |
+          mkdir -p _site/captures _site/polices
+          cp site/index.html _site/
+          cp docs/captures/accueil.png docs/captures/traitement.png docs/captures/revue.png docs/captures/banniere.png _site/captures/
+          cp public/polices/atkinson-sans.woff2 public/polices/atkinson-mono.woff2 public/polices/LICENSE.txt _site/polices/
+          cp public/marque.svg public/logo.png public/favicon.ico _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploiement
+        uses: actions/deploy-pages@v4

@@ -1,15 +1,4 @@
-/**
- * Sauvegarde et restauration. Une sauvegarde est une archive ZIP autoportante :
- *
- *   base.db          copie cohérente de la base (VACUUM INTO, sûr pendant le service)
- *   preuves/…        les pièces du coffre, sous leur nom de stockage
- *   logos/…          les logos du catalogue
- *   ancrages/…       les fichiers d'ancrage de la chaîne d'audit
- *   manifeste.json   version, date, compteurs, état de la chaîne, empreinte SHA-256 de chaque fichier
- *
- * `inspecter` vérifie une archive sans rien écrire ; `restaurer` la déploie sur
- * une installation arrêtée et refuse d'écraser une base existante sans `forcer`.
- */
+// Sauvegarde ZIP autoportante : base.db (VACUUM INTO), preuves, logos, ancrages, manifeste.json.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -42,9 +31,7 @@ function listerFichiers(dossier) {
   return resultat;
 }
 
-/**
- * Crée une archive dans `destination` (dossier). Renvoie { fichier, taille, manifeste }.
- */
+// `destination` est un dossier. Renvoie { fichier, taille, manifeste }.
 export async function sauvegarder({ destination = config.sauvegardesDir, acteur = 'système' } = {}) {
   const db = ouvrirDb();
   fs.mkdirSync(destination, { recursive: true });
@@ -98,10 +85,7 @@ export async function sauvegarder({ destination = config.sauvegardesDir, acteur 
   return { fichier, taille, manifeste };
 }
 
-/**
- * Lit une archive et confronte chaque fichier au manifeste. Ne touche ni à la
- * base ni au disque. Renvoie { valide, manifeste, verifications }.
- */
+// Ne touche ni à la base ni au disque. Renvoie { valide, manifeste, verifications }.
 export function inspecter(cheminZip) {
   const entrees = lireZip(cheminZip);
   const brut = entrees.get('manifeste.json');
@@ -121,11 +105,7 @@ export function inspecter(cheminZip) {
   return { valide: verifications.every((v) => v.ok), manifeste, verifications, entrees };
 }
 
-/**
- * Déploie une archive vérifiée. Les cibles par défaut sont celles de la
- * configuration ; l'application doit être arrêtée. Refuse d'écraser une base
- * existante sans `forcer`. Renvoie le nombre de fichiers écrits par famille.
- */
+// L'application doit être arrêtée, et une base existante n'est écrasée qu'avec `forcer`.
 export function restaurer(cheminZip, { forcer = false, cibles = {} } = {}) {
   const c = {
     dbPath: cibles.dbPath ?? config.dbPath,

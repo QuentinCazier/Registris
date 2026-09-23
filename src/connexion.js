@@ -1,9 +1,4 @@
-/**
- * Anti-force-brute sur la connexion, persistant en base : N échecs dans une
- * fenêtre glissante, par adresse IP et identifiant. En base plutôt qu'en
- * mémoire pour survivre à un redémarrage et rester juste si plusieurs
- * processus servent l'application.
- */
+// Anti-force-brute persistant en base : N échecs par fenêtre glissante, par adresse IP et identifiant.
 
 import { ouvrirDb } from './db.js';
 
@@ -35,12 +30,11 @@ export function enregistrerEchec(cle, maintenant = Date.now()) {
   return e.n + 1;
 }
 
-/** Connexion réussie : on oublie les échecs de cette clé. */
 export function reinitialiser(cle) {
   ouvrirDb().prepare('DELETE FROM tentatives_connexion WHERE cle = ?').run(cle);
 }
 
-/** Ménage des entrées expirées (appelé de temps en temps, sans conséquence si oublié). */
+// Appelé de temps en temps, sans conséquence s'il ne l'est pas.
 export function purger(maintenant = Date.now()) {
   return ouvrirDb()
     .prepare('DELETE FROM tentatives_connexion WHERE depuis < ?')

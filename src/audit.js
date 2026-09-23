@@ -1,11 +1,4 @@
-/**
- * Journal d'audit chaîné. Chaque écriture lie son empreinte SHA-256 à celle de
- * l'entrée précédente : une modification ou suppression a posteriori casse la
- * chaîne et devient détectable par `verifierChaine()`.
- *
- * C'est ce qui permet de présenter le registre lui-même comme fiable devant un
- * contrôle (commissaires aux comptes, PGSSI-S, certification).
- */
+// Journal d'audit chaîné : chaque écriture porte l'empreinte SHA-256 de la précédente.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -27,7 +20,7 @@ function calculerHash(entree) {
   return crypto.createHash('sha256').update(charge).digest('hex');
 }
 
-/** Enregistre une action. `details` (objet) est sérialisé en JSON. */
+// `details` est un objet, sérialisé en JSON.
 export function tracer(acteur, action, { entite = null, entiteId = null, details = null } = {}) {
   const db = ouvrirDb();
   const precedent = db.prepare('SELECT hash FROM journal_audit ORDER BY id DESC LIMIT 1').get();
@@ -49,7 +42,7 @@ export function tracer(acteur, action, { entite = null, entiteId = null, details
   return entree;
 }
 
-/** Recalcule toute la chaîne ; renvoie la première rupture éventuelle. */
+// Renvoie la première rupture éventuelle.
 export function verifierChaine() {
   const lignes = ouvrirDb().prepare('SELECT * FROM journal_audit ORDER BY id ASC').all();
   let precedent = null;
@@ -65,19 +58,59 @@ export function verifierChaine() {
   return { valide: true, entrees: lignes.length };
 }
 
-// --- Ancrage ---------------------------------------------------------------------
-//
-// La chaîne prouve qu'aucune entrée n'a été modifiée après coup, à condition que
-// la base elle-même n'ait pas été remplacée par une autre, cohérente mais
-// différente. L'ancrage photographie la tête de chaîne (dernier identifiant,
-// dernière empreinte, nombre d'entrées) et la dépose hors de la base : fichier
-// dans un dossier séparé, courriel si configuré. À la vérification, chaque
-// ancrage doit encore correspondre à la chaîne courante.
+// --- Contrôle complet et point de reprise -----------------------------------------
+// Les pages repartent du dernier contrôle complet ; ce qui le précède n'est revérifié
+// que par « registris verifier », à planifier.
+
+export function dernierControle() {
+  return ouvrirDb().prepare('SELECT * FROM controles_chaine ORDER BY id DESC LIMIT 1').get() ?? null;
+}
+
+export function enregistrerControle(acteur, resultat) {
+  const tete = teteDeChaine();
+  return ouvrirDb()
+    .prepare(
+      `INSERT INTO controles_chaine (verifie_par, dernier_id, hash_tete, entrees, valide)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(acteur, tete.dernier_id, tete.hash_tete, tete.entrees, resultat.valide ? 1 : 0);
+}
+
+// État de la chaîne pour l'affichage, depuis le dernier contrôle complet valide.
+export function etatChaine() {
+  const db = ouvrirDb();
+  const controle = dernierControle();
+  const total = db.prepare('SELECT COUNT(*) n FROM journal_audit').get().n;
+
+  if (!controle || !controle.valide || !controle.dernier_id) {
+    return { ...verifierChaine(), entrees: total, complet: true, controleLe: controle?.verifie_le ?? null };
+  }
+
+  // Le point de reprise doit lui-même être intact.
+  const reprise = db.prepare('SELECT * FROM journal_audit WHERE id = ?').get(controle.dernier_id);
+  if (!reprise || reprise.hash !== controle.hash_tete || calculerHash(reprise) !== reprise.hash) {
+    return { valide: false, rupture: controle.dernier_id, raison: 'point de reprise', entrees: total, complet: false, controleLe: controle.verifie_le };
+  }
+
+  const lignes = db.prepare('SELECT * FROM journal_audit WHERE id > ? ORDER BY id ASC').all(controle.dernier_id);
+  let precedent = controle.hash_tete;
+  for (const ligne of lignes) {
+    if ((ligne.hash_precedent ?? null) !== precedent) {
+      return { valide: false, rupture: ligne.id, raison: 'chainage', entrees: total, complet: false, controleLe: controle.verifie_le };
+    }
+    if (calculerHash(ligne) !== ligne.hash) {
+      return { valide: false, rupture: ligne.id, raison: 'contenu', entrees: total, complet: false, controleLe: controle.verifie_le };
+    }
+    precedent = ligne.hash;
+  }
+  return { valide: true, entrees: total, complet: false, depuis: controle.dernier_id, nouvelles: lignes.length, controleLe: controle.verifie_le };
+}
+
+// --- Ancrage : la tête de chaîne déposée hors de la base, contre un remplacement en bloc ----
 
 const empreinteAncrage = (a) =>
   crypto.createHash('sha256').update([a.horodatage, a.entrees, a.dernier_id, a.hash_tete].join('|')).digest('hex');
 
-/** État courant de la chaîne : dernier identifiant, empreinte de tête, nombre d'entrées. */
 export function teteDeChaine() {
   const db = ouvrirDb();
   const dernier = db.prepare('SELECT id, hash FROM journal_audit ORDER BY id DESC LIMIT 1').get();
@@ -85,7 +118,6 @@ export function teteDeChaine() {
   return { dernier_id: dernier?.id ?? 0, hash_tete: dernier?.hash ?? '', entrees: n };
 }
 
-/** Texte d'un ancrage, tel qu'écrit dans le fichier et envoyé par courriel. */
 export function texteAncrage(a) {
   return [
     `${config.nom} : ancrage de la chaîne d'audit`,
@@ -101,10 +133,7 @@ export function texteAncrage(a) {
   ].join('\n') + '\n';
 }
 
-/**
- * Enregistre un ancrage en base et l'écrit dans un fichier daté du dossier
- * d'ancrage (`dossier`, défaut : config.ancragesDir ; `null` pour ne pas écrire).
- */
+// `dossier` à null : ancrage enregistré en base, sans fichier.
 export function ancrer({ acteur = 'système', dossier = config.ancragesDir } = {}) {
   const db = ouvrirDb();
   const tete = teteDeChaine();
@@ -125,12 +154,11 @@ export function ancrer({ acteur = 'système', dossier = config.ancragesDir } = {
   return a;
 }
 
-/** Dernier ancrage enregistré, ou null. */
 export function dernierAncrage() {
   return ouvrirDb().prepare('SELECT * FROM ancrages ORDER BY id DESC LIMIT 1').get() ?? null;
 }
 
-/** Lit un fichier d'ancrage (clé=valeur) ; renvoie null s'il est illisible. */
+// Fichier clé=valeur ; null s'il est illisible.
 export function lireFichierAncrage(chemin) {
   try {
     const a = {};
@@ -144,12 +172,7 @@ export function lireFichierAncrage(chemin) {
   }
 }
 
-/**
- * Confronte chaque ancrage (en base et dans le dossier) à la chaîne courante.
- * Anomalies possibles : entrée de tête disparue ou modifiée, nombre d'entrées
- * différent, ancrage lui-même altéré, fichier manquant ou différent de la base,
- * fichier présent sans ancrage en base (signe d'une base remplacée).
- */
+// Un fichier d'ancrage sans équivalent en base signale une base remplacée.
 export function verifierAncrages({ dossier = config.ancragesDir } = {}) {
   const db = ouvrirDb();
   const ancrages = db.prepare('SELECT * FROM ancrages ORDER BY id ASC').all();
@@ -188,7 +211,6 @@ export function verifierAncrages({ dossier = config.ancragesDir } = {}) {
   return { valide: anomalies.length === 0, ancrages: ancrages.length, fichiers, dernier: ancrages.at(-1) ?? null, anomalies };
 }
 
-/** Dernières entrées, éventuellement filtrées par texte (acteur, action, cible). */
 export function journal({ limite = 200, q = '' } = {}) {
   const db = ouvrirDb();
   const terme = String(q ?? '').trim();
@@ -205,7 +227,7 @@ export function journal({ limite = 200, q = '' } = {}) {
     .all(like, like, like, like, limite);
 }
 
-/** Historique d'une entité précise (ex. une habilitation), du plus ancien au plus récent. */
+// Du plus ancien au plus récent.
 export function historique(entite, entiteId) {
   return ouvrirDb()
     .prepare('SELECT * FROM journal_audit WHERE entite = ? AND entite_id = ? ORDER BY id ASC')

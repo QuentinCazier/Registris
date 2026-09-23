@@ -1,11 +1,4 @@
-/**
- * Base de données : SQLite via le module natif `node:sqlite` (Node ≥ 22).
- *
- * Choix déterminant pour un déploiement hospitalier : aucune dépendance native à
- * compiler, un seul fichier à sauvegarder. Le fichier .db doit rester sur un disque
- * local de la machine qui exécute l'application, jamais sur un partage réseau SMB
- * (risque de corruption en accès concurrent).
- */
+// SQLite via node:sqlite (Node >= 22). Le fichier doit rester sur un disque local, jamais sur un partage réseau.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,7 +17,6 @@ export function ouvrirDb() {
   return db;
 }
 
-/** Ferme la connexion (tests). */
 export function fermerDb() {
   if (db) {
     db.close();
@@ -34,11 +26,7 @@ export function fermerDb() {
 
 let profondeur = 0;
 
-/**
- * Exécute `fn` dans une transaction : COMMIT si elle réussit, ROLLBACK sinon.
- * Réentrante : un appel imbriqué rejoint la transaction en cours (une erreur
- * annule alors l'ensemble).
- */
+// Réentrante : un appel imbriqué rejoint la transaction en cours.
 export function transaction(fn) {
   const base = ouvrirDb();
   if (profondeur > 0) {
@@ -63,7 +51,6 @@ export function transaction(fn) {
   }
 }
 
-/** Migration additive idempotente : ajoute une colonne si elle manque. */
 export function ajouterColonneSiAbsente(table, colonne, definition) {
   const base = ouvrirDb();
   const existe = base
@@ -73,12 +60,63 @@ export function ajouterColonneSiAbsente(table, colonne, definition) {
   if (!existe) base.exec(`ALTER TABLE ${table} ADD COLUMN ${colonne} ${definition}`);
 }
 
-/**
- * Schéma complet. Idempotent : sûr à appeler à chaque démarrage. Les évolutions
- * futures passent par `ajouterColonneSiAbsente` pour préserver les données.
- */
+// SQLite ne modifie pas une contrainte CHECK : la table est reconstruite pour accepter « refusée ».
+function elargirStatuts(base) {
+  const t = base
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'habilitations'")
+    .get();
+  if (!t || t.sql.includes("'refusee'")) return;
+
+  const anciennes = base.prepare('PRAGMA table_info(habilitations)').all().map((c) => c.name);
+  base.exec('PRAGMA foreign_keys = OFF');
+  base.exec('PRAGMA legacy_alter_table = ON');
+  try {
+    transaction(() => {
+      base.exec(`
+        CREATE TABLE habilitations_nouvelle (
+          id               INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_id         INTEGER NOT NULL REFERENCES agents(id),
+          application_id   INTEGER NOT NULL REFERENCES applications(id),
+          role             TEXT NOT NULL,
+          statut           TEXT NOT NULL DEFAULT 'demandee'
+                             CHECK (statut IN ('demandee','validee','executee','revoquee','refusee')),
+          demandeur        TEXT,
+          cree_par         TEXT,
+          pour_autrui      INTEGER NOT NULL DEFAULT 0,
+          site_id          INTEGER REFERENCES sites(id),
+          uf_libre         TEXT,
+          commentaire      TEXT,
+          date_demande     TEXT,
+          date_validation  TEXT,
+          date_realisation TEXT,
+          date_revocation  TEXT,
+          date_refus       TEXT,
+          assigne_a        TEXT,
+          assigne_le       TEXT,
+          retrait_demande_le  TEXT,
+          retrait_demande_par TEXT,
+          retrait_motif       TEXT,
+          relance_le       TEXT,
+          relances         INTEGER NOT NULL DEFAULT 0,
+          cree_le          TEXT NOT NULL DEFAULT (datetime('now')),
+          maj_le           TEXT NOT NULL DEFAULT (datetime('now'))
+        )`);
+      const cibles = base.prepare('PRAGMA table_info(habilitations_nouvelle)').all().map((c) => c.name);
+      const communes = anciennes.filter((c) => cibles.includes(c)).join(', ');
+      base.exec(`INSERT INTO habilitations_nouvelle (${communes}) SELECT ${communes} FROM habilitations`);
+      base.exec('DROP TABLE habilitations');
+      base.exec('ALTER TABLE habilitations_nouvelle RENAME TO habilitations');
+    });
+  } finally {
+    base.exec('PRAGMA legacy_alter_table = OFF');
+    base.exec('PRAGMA foreign_keys = ON');
+  }
+}
+
+// Idempotent, appelé à chaque démarrage. Les évolutions passent par ajouterColonneSiAbsente.
 export function initialiserSchema() {
   const base = ouvrirDb();
+  elargirStatuts(base);
   base.exec(`
     -- Agents de l'établissement (bénéficiaires d'habilitations). Données RH internes.
     CREATE TABLE IF NOT EXISTS agents (
@@ -143,7 +181,7 @@ export function initialiserSchema() {
       application_id   INTEGER NOT NULL REFERENCES applications(id),
       role             TEXT NOT NULL,
       statut           TEXT NOT NULL DEFAULT 'demandee'
-                         CHECK (statut IN ('demandee','validee','executee','revoquee')),
+                         CHECK (statut IN ('demandee','validee','executee','revoquee','refusee')),
       demandeur        TEXT,
       cree_par         TEXT,
       pour_autrui      INTEGER NOT NULL DEFAULT 0,
@@ -154,6 +192,16 @@ export function initialiserSchema() {
       date_validation  TEXT,
       date_realisation TEXT,
       date_revocation  TEXT,
+      date_refus       TEXT,
+      -- Qui tient la demande. Une file partagée sans nom dessus n'est traitée par personne.
+      assigne_a        TEXT,
+      assigne_le       TEXT,
+      -- Demande de fermeture : l'accès reste ouvert tant que le référent n'a pas exécuté.
+      retrait_demande_le  TEXT,
+      retrait_demande_par TEXT,
+      retrait_motif       TEXT,
+      relance_le       TEXT,
+      relances         INTEGER NOT NULL DEFAULT 0,
       cree_le          TEXT NOT NULL DEFAULT (datetime('now')),
       maj_le           TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -227,9 +275,64 @@ export function initialiserSchema() {
       depuis  TEXT NOT NULL
     );
 
-    -- Ancrages de la chaîne d'audit : photographie datée de la tête de chaîne,
-    -- doublée d'un fichier (et d'un courriel si configuré) conservés hors de la
-    -- base. Une base remplacée en bloc ne passe plus inaperçue.
+    -- Sessions web, pour survivre à un redémarrage.
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid      TEXT PRIMARY KEY,
+      expire   INTEGER NOT NULL,
+      donnees  TEXT NOT NULL
+    );
+
+    -- Comptes de l'annuaire vus à la connexion : identifiant canonique, nom, courriel, rôle.
+    CREATE TABLE IF NOT EXISTS comptes_annuaire (
+      login      TEXT PRIMARY KEY,
+      nom        TEXT NOT NULL,
+      email      TEXT,
+      matricule  TEXT,
+      role       TEXT NOT NULL,
+      vu_le      TEXT NOT NULL
+    );
+
+    -- Extraction des comptes d'une application, conservée telle quelle avec son empreinte.
+    CREATE TABLE IF NOT EXISTS rapprochements (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id  INTEGER NOT NULL REFERENCES applications(id),
+      fichier         TEXT NOT NULL,
+      empreinte       TEXT NOT NULL,
+      contenu         BLOB NOT NULL,
+      colonnes        TEXT,
+      statut          TEXT NOT NULL DEFAULT 'a_configurer' CHECK (statut IN ('a_configurer','termine')),
+      comptes         INTEGER,
+      cree_le         TEXT NOT NULL DEFAULT (datetime('now')),
+      cree_par        TEXT NOT NULL,
+      analyse_le      TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS rapprochement_lignes (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      rapprochement_id   INTEGER NOT NULL REFERENCES rapprochements(id) ON DELETE CASCADE,
+      categorie          TEXT NOT NULL CHECK (categorie IN
+                           ('revoque_present','non_declare','introuvable','en_cours_present','concordant')),
+      matricule          TEXT NOT NULL,
+      nom                TEXT,
+      profil_application TEXT,
+      habilitation_id    INTEGER REFERENCES habilitations(id),
+      suite              TEXT CHECK (suite IN ('regularise','revoque','execute','ferme_dans_app')),
+      suite_par          TEXT,
+      suite_le           TEXT
+    );
+
+    -- Contrôles complets de la chaîne ; le dernier sert de point de reprise aux pages.
+    CREATE TABLE IF NOT EXISTS controles_chaine (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      verifie_le  TEXT NOT NULL DEFAULT (datetime('now')),
+      verifie_par TEXT NOT NULL,
+      dernier_id  INTEGER NOT NULL,
+      hash_tete   TEXT NOT NULL,
+      entrees     INTEGER NOT NULL,
+      valide      INTEGER NOT NULL DEFAULT 1
+    );
+
+    -- Tête de chaîne déposée hors de la base, pour détecter une base remplacée.
     CREATE TABLE IF NOT EXISTS ancrages (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       horodatage  TEXT NOT NULL,
@@ -241,11 +344,46 @@ export function initialiserSchema() {
       acteur      TEXT
     );
 
+    -- Revue périodique : une campagne fige les accès actifs à son ouverture.
+    CREATE TABLE IF NOT EXISTS campagnes (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      libelle      TEXT NOT NULL,
+      echeance     TEXT,
+      perimetre_application_id INTEGER REFERENCES applications(id),
+      ouverte_le   TEXT NOT NULL DEFAULT (datetime('now')),
+      ouverte_par  TEXT NOT NULL,
+      cloturee_le  TEXT,
+      cloturee_par TEXT
+    );
+
+    -- Une ligne par habilitation de la campagne ; décision NULL tant que rien n'est statué.
+    CREATE TABLE IF NOT EXISTS revues (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      campagne_id      INTEGER NOT NULL REFERENCES campagnes(id) ON DELETE CASCADE,
+      habilitation_id  INTEGER NOT NULL REFERENCES habilitations(id),
+      application_id   INTEGER NOT NULL REFERENCES applications(id),
+      decision         TEXT CHECK (decision IN ('maintenue','retiree')),
+      decide_par       TEXT,
+      decide_le        TEXT,
+      motif            TEXT,
+      UNIQUE (campagne_id, habilitation_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_agents_matricule ON agents(matricule);
     CREATE INDEX IF NOT EXISTS idx_hab_agent ON habilitations(agent_id);
     CREATE INDEX IF NOT EXISTS idx_hab_statut ON habilitations(statut);
+    CREATE INDEX IF NOT EXISTS idx_hab_assigne ON habilitations(assigne_a);
+    CREATE INDEX IF NOT EXISTS idx_hab_retrait ON habilitations(retrait_demande_le);
     CREATE INDEX IF NOT EXISTS idx_preuves_hab ON preuves(habilitation_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entite ON journal_audit(entite, entite_id);
+    CREATE INDEX IF NOT EXISTS idx_journal_action ON journal_audit(action);
+    CREATE INDEX IF NOT EXISTS idx_rapp_lignes ON rapprochement_lignes(rapprochement_id, categorie);
+    CREATE INDEX IF NOT EXISTS idx_rapp_application ON rapprochements(application_id);
+    CREATE INDEX IF NOT EXISTS idx_revues_campagne ON revues(campagne_id, decision);
+    CREATE INDEX IF NOT EXISTS idx_revues_application ON revues(campagne_id, application_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions(expire);
   `);
+  ajouterColonneSiAbsente('habilitations', 'relance_le', 'TEXT');
+  ajouterColonneSiAbsente('habilitations', 'relances', 'INTEGER NOT NULL DEFAULT 0');
   return base;
 }

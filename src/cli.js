@@ -1,35 +1,36 @@
 #!/usr/bin/env node
-/**
- * Ligne de commande de Registris.
- *
- *   registris init                       crée la base (schéma) si besoin
- *   registris servir                     démarre le serveur web
- *   registris utilisateur <login> <role> <nom…>
- *                                                crée un compte local (mot de passe demandé au clavier,
- *                                                ou variable REGISTRIS_MOT_DE_PASSE)
- *   registris ufs <fichier.csv>          importe un référentiel d'UF (code;libelle)
- *   registris verifier                   vérifie la chaîne d'audit, ses ancrages et l'intégrité du coffre
- *   registris ancrer                     dépose l'empreinte de tête de la chaîne hors de la base (fichier, courriel)
- *   registris sauvegarder [dossier]      archive ZIP : base, pièces, logos, ancrages, manifeste
- *   registris restaurer <zip> [--verifier] [--forcer]
- *                                                contrôle une archive, ou la redéploie (application arrêtée)
- *   registris tester-ldap <login>        diagnostic pas à pas de la connexion à l'annuaire
- *   registris demo                       base de démonstration (données fictives)
- */
+// Ligne de commande de Registris.
 
 import fs from 'node:fs';
 import readline from 'node:readline/promises';
 
 import { config, verifierPourProduction } from './config.js';
 import { ouvrirDb, initialiserSchema } from './db.js';
-import { hacherMotDePasse, diagnostiquerLdap } from './auth.js';
+import { diagnostiquerLdap } from './auth.js';
 import { ROLES } from './roles.js';
-import { verifierChaine, verifierAncrages, ancrer } from './audit.js';
+import { creerUtilisateur } from './administration.js';
+import { verifierChaine, verifierAncrages, ancrer, enregistrerControle } from './audit.js';
 import { auditerCoffre } from './preuves.js';
 import { sauvegarder, inspecter, restaurer } from './sauvegarde.js';
+import { relancer } from './relances.js';
 import { notifier } from './mailer.js';
 import { creerApp } from './serveur.js';
 import { chargerDemo } from './demo.js';
+
+const USAGE = `Usage : registris <commande>
+
+  init                              crée la base si besoin
+  servir                            démarre le serveur web (défaut)
+  utilisateur <login> <rôle> <nom>  crée un compte local (mot de passe demandé, ou REGISTRIS_MOT_DE_PASSE)
+  ufs <fichier.csv>                 importe un référentiel d'UF (code;libelle)
+  verifier                          vérifie la chaîne d'audit, ses ancrages et l'intégrité du coffre
+  ancrer                            dépose l'empreinte de tête de la chaîne hors de la base
+  relancer [--simuler]              relance les demandes en attente depuis plus de RELANCE_JOURS
+  sauvegarder [dossier]             archive ZIP : base, pièces, logos, ancrages, manifeste
+  restaurer <zip> [--verifier] [--forcer]
+                                    contrôle une archive, ou la redéploie (application arrêtée)
+  tester-ldap <login>               diagnostic pas à pas de la connexion à l'annuaire
+  demo                              charge le jeu de démonstration (données fictives)`;
 
 const [, , commande, ...argsBruts] = process.argv;
 const drapeaux = new Set(argsBruts.filter((a) => a.startsWith('--')));
@@ -60,15 +61,13 @@ async function creerCompte() {
     process.exit(1);
   }
   const motDePasse = await lireMotDePasse();
-  if (String(motDePasse).length < 12) {
-    console.error('Mot de passe trop court (12 caractères minimum).');
+  initialiserSchema();
+  try {
+    creerUtilisateur('cli', { login, nom: nomParts.join(' ') || login, role, motDePasse });
+  } catch (e) {
+    console.error(e.message);
     process.exit(1);
   }
-  initialiserSchema();
-  const { sel, hash } = hacherMotDePasse(motDePasse);
-  ouvrirDb()
-    .prepare('INSERT INTO utilisateurs (login, nom, role, sel, hash_mdp) VALUES (?, ?, ?, ?, ?)')
-    .run(login, nomParts.join(' ') || login, role, sel, hash);
   console.log(`Compte « ${login} » (${role}) créé.`);
 }
 
@@ -96,6 +95,7 @@ function importerUfs() {
 function verifier() {
   initialiserSchema();
   const chaine = verifierChaine();
+  enregistrerControle('cli', chaine);
   const ancrages = verifierAncrages();
   const coffre = auditerCoffre();
   console.log(chaine.valide ? `Chaîne d'audit intègre (${chaine.entrees} entrées).` : `RUPTURE de la chaîne d'audit à l'entrée n°${chaine.rupture} (${chaine.raison}).`);
@@ -120,6 +120,38 @@ async function ancrerChaine() {
     console.log(envoye ? `Courriel remis au relais pour ${config.ancrageEmail}.` : `Courriel non envoyé (relais SMTP indisponible ou non configuré).`);
   }
   console.log('Conservez le fichier ou le courriel hors du serveur : ils permettent de détecter une base remplacée.');
+}
+
+async function relancerDemandes() {
+  initialiserSchema();
+  const simuler = drapeaux.has('--simuler');
+  const r = await relancer({ simuler });
+
+  if (!r.enRetard) {
+    console.log(`Aucune demande en attente depuis plus de ${config.relanceJours} jours.`);
+    return;
+  }
+  console.log(`${r.enRetard} demande(s) en attente depuis plus de ${config.relanceJours} jours, dont ${r.aRelancer} à relancer.`);
+  if (!r.aRelancer) {
+    console.log('Les autres ont déjà été relancées dans la période.');
+    return;
+  }
+  for (const e of r.envois) {
+    const etat = simuler ? 'à relancer'
+      : e.envoye ? 'relance envoyée'
+        : r.relaisConfigure ? 'ENVOI ÉCHOUÉ' : 'non envoyée';
+    console.log(`  ${e.destinataire} · ${e.demandes.length} demande(s) · ${etat}`);
+  }
+  if (!simuler && !r.relaisConfigure && r.envois.length) {
+    console.log('Aucun relais SMTP configuré (SMTP_HOST) : rien n\'a été envoyé, et aucune demande');
+    console.log('n\'a été marquée comme relancée. Les retards restent visibles dans la file.');
+  }
+  if (r.orphelines.length) {
+    console.log(`${r.orphelines.length} demande(s) sans destinataire : ni traitant, ni adresse de routage sur la catégorie.`);
+    for (const h of r.orphelines) console.log(`  - n°${h.id} · ${h.app_libelle} · ${h.jours_attente} jours`);
+    console.log('Assignez-les, ou renseignez une adresse dans « Administration, Notifications ».');
+  }
+  if (simuler) console.log('Simulation : aucun courriel envoyé, aucune date de relance écrite.');
 }
 
 async function sauvegarderBase() {
@@ -209,6 +241,9 @@ switch (commande) {
   case 'ancrer':
     await ancrerChaine();
     break;
+  case 'relancer':
+    await relancerDemandes();
+    break;
   case 'sauvegarder':
     await sauvegarderBase();
     break;
@@ -222,8 +257,12 @@ switch (commande) {
     initialiserSchema();
     chargerDemo();
     break;
+  case 'aide':
+  case '--aide':
+  case '--help':
+    console.log(USAGE);
+    break;
   default:
-    console.error(`Commande inconnue : ${commande}`);
-    console.error('Commandes : init | servir | utilisateur | ufs | verifier | ancrer | sauvegarder | restaurer | tester-ldap | demo');
+    console.error(`Commande inconnue : ${commande}\n\n${USAGE}`);
     process.exit(1);
 }

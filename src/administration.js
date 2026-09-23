@@ -1,11 +1,4 @@
-/**
- * Fonctions réservées à l'administrateur : catalogue (catégories, applications,
- * logos), référentiels (UF, sites), packs « nouvel arrivant », comptes locaux et
- * périmètre des référents.
- *
- * En mode LDAP, les comptes et rôles viennent de l'annuaire ; seuls le catalogue,
- * les référentiels, les packs et le périmètre des référents restent gérés ici.
- */
+// Fonctions réservées à l'administrateur.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -16,6 +9,7 @@ import { ouvrirDb, transaction } from './db.js';
 import { hacherMotDePasse } from './auth.js';
 import { tracer } from './audit.js';
 import { ROLES } from './roles.js';
+import { BIBLIOTHEQUE, VERSION_BIBLIOTHEQUE, fonctionParCode, produitParCode } from './logiciels.js';
 
 const texte = (v) => String(v ?? '').trim();
 
@@ -50,7 +44,7 @@ export function supprimerCategorie(acteur, id) {
 
 const EXT_LOGO = ['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif'];
 
-/** Stocke un logo téléversé sous un nom neutre ; renvoie ce nom. */
+// Nom de stockage neutre, renvoyé à l'appelant.
 export function enregistrerLogo({ tampon, nom }) {
   if (!tampon?.length || !nom) return null;
   const ext = path.extname(nom).toLowerCase();
@@ -100,6 +94,53 @@ export function supprimerApplication(acteur, id) {
   }
   db.prepare('DELETE FROM applications WHERE id = ?').run(Number(id));
   tracer(acteur, 'application:supprimer', { entite: 'application', entiteId: Number(id) });
+}
+
+// --- Bibliothèque de logiciels ----------------------------------------------------
+
+// Marque les produits déjà au catalogue, reconnus par leur code.
+export function etatBibliotheque() {
+  const presents = new Set(ouvrirDb().prepare('SELECT code FROM applications').all().map((a) => a.code));
+  return BIBLIOTHEQUE.map((f) => ({
+    ...f,
+    produits: f.produits.map((pr) => ({ ...pr, present: presents.has(pr.code) })),
+  }));
+}
+
+// Ajoute les produits choisis ; la fonction devient la catégorie, créée si elle manque.
+export function ajouterDepuisBibliotheque(acteur, codes = []) {
+  const voulus = [...new Set([].concat(codes).map((c) => String(c).trim()).filter(Boolean))];
+  const choisis = voulus.map(produitParCode).filter(Boolean);
+  if (!choisis.length) throw new Error('Sélectionnez au moins un logiciel.');
+
+  const db = ouvrirDb();
+  return transaction(() => {
+    const bilan = { ajoutees: [], existantes: [], categorieCreees: [] };
+    const categories = new Map(listerCategories({ tous: true }).map((c) => [c.libelle, c.id]));
+
+    for (const produit of choisis) {
+      if (db.prepare('SELECT 1 FROM applications WHERE code = ?').get(produit.code)) {
+        bilan.existantes.push(produit.nom);
+        continue;
+      }
+      const fonction = fonctionParCode(produit.fonction);
+      let categorieId = categories.get(fonction.libelle);
+      if (!categorieId) {
+        categorieId = creerCategorie(acteur, { libelle: fonction.libelle, ordre: BIBLIOTHEQUE.indexOf(fonction) + 1 });
+        categories.set(fonction.libelle, categorieId);
+        bilan.categorieCreees.push(fonction.libelle);
+      }
+      creerApplication(acteur, { code: produit.code, libelle: produit.nom, categorieId });
+      bilan.ajoutees.push(produit.nom);
+    }
+
+    if (bilan.ajoutees.length) {
+      tracer(acteur, 'bibliotheque:ajouter', {
+        details: { version: VERSION_BIBLIOTHEQUE, ajoutees: bilan.ajoutees.length, logiciels: bilan.ajoutees },
+      });
+    }
+    return bilan;
+  });
 }
 
 // --- Référentiels : UF et sites --------------------------------------------------
@@ -159,10 +200,10 @@ export function listerUtilisateurs({ q = '', role = '' } = {}) {
     .prepare(`SELECT id, login, nom, role, matricule, email, actif FROM utilisateurs ${where} ORDER BY nom`)
     .all(...args);
   const perimetres = perimetresReferents();
-  return users.map((u) => ({ ...u, applications: perimetres.get(u.login) ?? [] }));
+  return users.map((u) => ({ ...u, applications: perimetres.get(u.login.toLowerCase()) ?? [] }));
 }
 
-/** Map login -> libellés des applications du périmètre (tous logins, locaux ou annuaire). */
+// login -> libellés des applications, logins locaux et annuaire confondus.
 export function perimetresReferents() {
   const lignes = ouvrirDb()
     .prepare(
@@ -172,15 +213,42 @@ export function perimetresReferents() {
     .all();
   const m = new Map();
   for (const l of lignes) {
-    if (!m.has(l.login)) m.set(l.login, []);
-    m.get(l.login).push({ id: l.id, libelle: l.libelle });
+    const login = l.login.toLowerCase();
+    if (!m.has(login)) m.set(login, []);
+    m.get(login).push({ id: l.id, libelle: l.libelle });
   }
   return m;
 }
 
-/** Remplace le périmètre d'un référent (login local ou identifiant annuaire). */
+// Traitants possibles : admin, référents couvrant l'application ou sans périmètre, comptes locaux
+// comme comptes de l'annuaire déjà vus, et identifiants jamais vus mais dotés d'un périmètre.
+export function traitantsPossibles(applicationId) {
+  const id = Number(applicationId);
+  const couvre = (login) => `(EXISTS (SELECT 1 FROM referent_applications ra WHERE ra.login = ${login} COLLATE NOCASE AND ra.application_id = ?)
+       OR NOT EXISTS (SELECT 1 FROM referent_applications ra WHERE ra.login = ${login} COLLATE NOCASE))`;
+  return ouvrirDb()
+    .prepare(
+      `SELECT login, nom, role FROM (
+         SELECT u.login, u.nom, u.role FROM utilisateurs u
+          WHERE u.actif = 1 AND (u.role = 'admin' OR (u.role = 'referent' AND ${couvre('u.login')}))
+         UNION
+         SELECT c.login, c.nom, c.role FROM comptes_annuaire c
+          WHERE NOT EXISTS (SELECT 1 FROM utilisateurs u WHERE u.login = c.login COLLATE NOCASE)
+            AND (c.role = 'admin' OR (c.role = 'referent' AND ${couvre('c.login')}))
+         UNION
+         SELECT ra.login, ra.login AS nom, 'referent' AS role FROM referent_applications ra
+          WHERE ra.application_id = ?
+            AND NOT EXISTS (SELECT 1 FROM utilisateurs u WHERE u.login = ra.login COLLATE NOCASE)
+            AND NOT EXISTS (SELECT 1 FROM comptes_annuaire c WHERE c.login = ra.login COLLATE NOCASE)
+       )
+        ORDER BY CASE role WHEN 'referent' THEN 0 ELSE 1 END, nom`,
+    )
+    .all(id, id, id);
+}
+
+// L'identifiant est rangé en minuscules : l'annuaire ignore la casse, la jointure doit l'ignorer aussi.
 export function definirPerimetreReferent(acteur, login, applicationIds = []) {
-  const l = texte(login);
+  const l = texte(login).toLowerCase();
   if (!l) throw new Error('Identifiant requis.');
   const ids = [...new Set([].concat(applicationIds).map(Number).filter(Boolean))];
   const db = ouvrirDb();
@@ -198,7 +266,7 @@ export function creerUtilisateur(acteur, { login, nom, role, motDePasse, matricu
   if (String(motDePasse).length < 12) throw new Error('Mot de passe trop court (12 caractères minimum).');
   if (!ROLES.includes(role)) throw new Error(`Rôle inconnu : ${role}`);
   const db = ouvrirDb();
-  if (db.prepare('SELECT 1 FROM utilisateurs WHERE login = ?').get(l)) throw new Error(`Le compte « ${l} » existe déjà.`);
+  if (db.prepare('SELECT 1 FROM utilisateurs WHERE login = ? COLLATE NOCASE').get(l)) throw new Error(`Le compte « ${l} » existe déjà.`);
   const { sel, hash } = hacherMotDePasse(motDePasse);
   transaction(() => {
     db.prepare(
@@ -211,19 +279,43 @@ export function creerUtilisateur(acteur, { login, nom, role, motDePasse, matricu
 
 export function utilisateurParLogin(login) {
   const db = ouvrirDb();
-  const u = db.prepare('SELECT id, login, nom, role, matricule, email, actif FROM utilisateurs WHERE login = ?').get(login);
+  const u = db.prepare('SELECT id, login, nom, role, matricule, email, actif FROM utilisateurs WHERE login = ? COLLATE NOCASE').get(login);
   if (!u) return null;
   u.applicationIds = db
-    .prepare('SELECT application_id FROM referent_applications WHERE login = ?')
+    .prepare('SELECT application_id FROM referent_applications WHERE login = ? COLLATE NOCASE')
     .all(login)
     .map((r) => r.application_id);
   return u;
 }
 
-/** Courriel d'un compte local (pour notifier le demandeur). Null si inconnu. */
 export function emailUtilisateur(login) {
   if (!login) return null;
-  return ouvrirDb().prepare('SELECT email FROM utilisateurs WHERE login = ?').get(login)?.email || null;
+  const db = ouvrirDb();
+  return db.prepare('SELECT email FROM utilisateurs WHERE login = ? COLLATE NOCASE').get(login)?.email
+    || db.prepare('SELECT email FROM comptes_annuaire WHERE login = ? COLLATE NOCASE').get(login)?.email
+    || null;
+}
+
+// --- Comptes de l'annuaire vus à la connexion ---------------------------------------------
+
+// C'est ce qui permet de confier une demande à un référent de l'annuaire et de lui écrire.
+export function memoriserCompteAnnuaire({ login, nom, email, matricule, role }) {
+  ouvrirDb()
+    .prepare(
+      `INSERT INTO comptes_annuaire (login, nom, email, matricule, role, vu_le)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(login) DO UPDATE SET nom = excluded.nom, email = excluded.email,
+         matricule = excluded.matricule, role = excluded.role, vu_le = excluded.vu_le`,
+    )
+    .run(String(login).toLowerCase(), texte(nom) || String(login), texte(email) || null, texte(matricule) || null, role);
+}
+
+export function listerComptesAnnuaire() {
+  const perimetres = perimetresReferents();
+  return ouvrirDb()
+    .prepare('SELECT * FROM comptes_annuaire ORDER BY nom')
+    .all()
+    .map((c) => ({ ...c, applications: perimetres.get(c.login) ?? [] }));
 }
 
 const compterAdmins = (db) =>

@@ -1,16 +1,11 @@
-/**
- * Jeu de démonstration : un petit établissement fictif, des applications
- * génériques, quatre comptes (un par rôle) et quelques habilitations à divers
- * stades, avec des pièces de preuve factices. Aucune donnée réelle.
- *
- * Mot de passe commun des comptes de démonstration : demo-registris
- */
+// Jeu de démonstration : données fictives, un compte par rôle, mot de passe commun demo-registris.
 
 import { ouvrirDb } from './db.js';
 import { hacherMotDePasse } from './auth.js';
-import { creerHabilitation, changerStatut } from './habilitations.js';
+import { creerHabilitation, changerStatut, demanderRetrait, assigner } from './habilitations.js';
 import { ajouterPreuve } from './preuves.js';
 import { setRoutage } from './parametres.js';
+import { ouvrirCampagne, decider } from './revues.js';
 
 export const MOT_DE_PASSE_DEMO = 'demo-registris';
 
@@ -187,6 +182,30 @@ export function chargerDemo() {
     applicationId: appId('VPN'), role: 'Accès distant standard', demandeur: 'E45678 Claire Petit', pourAutrui: true,
     commentaire: 'Télétravail un jour par semaine.',
   });
+
+  // Une fermeture demandée par un cadre : l'accès reste ouvert tant qu'un
+  // référent n'a pas agi, et la demande attend dans la file de traitement.
+  demanderRetrait('agent', h1.id, {
+    motif: 'Mutation de l\'agent au service des admissions programmées le 30/06.',
+    demandeur: 'R0001 Pierre Durand',
+  });
+  assigner('admin', h1.id, 'referent');
+
+  // Une demande refusée : elle quitte la file sans jamais devenir un accès.
+  const h6 = creerHabilitation('agent', {
+    agent: { matricule: 'E51230', nom: 'Garcia', prenom: 'Nadia' },
+    applicationId: appId('GEF'), role: 'Engagement des dépenses',
+    demandeur: 'E45678 Claire Petit', pourAutrui: true,
+  });
+  changerStatut('admin', h6.id, 'refuser', { motif: 'Profil réservé à la direction des achats.' });
+
+  // Une campagne en cours : c'est ce qu'un auditeur demande après le registre.
+  const campagne = ouvrirCampagne('admin', {
+    libelle: `Revue annuelle des accès ${new Date().getFullYear()}`,
+    echeance: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+  });
+  // Le référent ne couvre pas le dossier patient : l'administratrice y statue.
+  decider('admin', campagne.id, h3.id, 'maintenue');
 
   console.log('Démonstration chargée. Comptes : admin, referent, controleur, agent');
   console.log(`Mot de passe commun : ${MOT_DE_PASSE_DEMO}`);

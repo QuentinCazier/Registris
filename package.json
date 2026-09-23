@@ -1,6 +1,6 @@
 {
   "name": "registris",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Registre des habilitations et coffre à preuves d'audit pour les établissements publics de santé : qui a obtenu quel accès, sur quel logiciel, sur quelles UF, quand, sur la base de quelle demande, prouvé par quelle pièce.",
   "keywords": [
     "habilitations",
@@ -15,7 +15,7 @@
     "active-directory",
     "sqlite"
   ],
-  "homepage": "https://github.com/QuentinCazier/registris#readme",
+  "homepage": "https://quentincazier.github.io/registris/",
   "bugs": "https://github.com/QuentinCazier/registris/issues",
   "repository": {
     "type": "git",
@@ -48,6 +48,7 @@
     "express": "^4.22.2",
     "express-session": "^1.19.0",
     "ldap-authentication": "^4.0.4",
+    "ldapts": "^9.0.0",
     "multer": "^1.4.5-lts.2",
     "nodemailer": "^9.0.3"
   },

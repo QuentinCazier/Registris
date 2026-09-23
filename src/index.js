@@ -1,7 +1,4 @@
-/**
- * Point d'entrée bibliothèque : réexporte les modules pour un usage
- * programmatique ou par les tests.
- */
+// Point d'entrée bibliothèque : usage programmatique et tests.
 
 export { config } from './config.js';
 export { ouvrirDb, initialiserSchema, fermerDb } from './db.js';

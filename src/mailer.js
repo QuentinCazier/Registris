@@ -1,8 +1,4 @@
-/**
- * Notifications par courriel via le relais SMTP interne de l'établissement.
- * Désactivé proprement si SMTP_HOST est vide : l'application fonctionne sans mail.
- * Ne lève jamais : une panne SMTP ne doit pas bloquer une demande d'habilitation.
- */
+// Courriels via le relais SMTP interne. Sans SMTP_HOST, rien ne part ; ne lève jamais.
 
 import { config } from './config.js';
 
@@ -18,7 +14,7 @@ async function obtenirTransport() {
   return transport;
 }
 
-/** Envoie un mail. Renvoie true si remis au relais, false sinon. */
+// true si le relais a accepté le message.
 export async function notifier({ to, sujet, texte }) {
   const destinataires = (Array.isArray(to) ? to : [to]).filter(Boolean);
   if (!destinataires.length) return false;

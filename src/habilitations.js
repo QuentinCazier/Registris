@@ -1,24 +1,21 @@
-/**
- * Cœur métier : agents, applications, habilitations, recherche et cycle de vie.
- * Toute modification du registre est tracée dans le journal d'audit chaîné.
- */
+// Cœur métier : agents, applications, habilitations, cycle de vie. Tout est tracé au journal.
 
 import { ouvrirDb, transaction } from './db.js';
 import { tracer } from './audit.js';
 
-export const STATUTS = ['demandee', 'validee', 'executee', 'revoquee'];
+export const STATUTS = ['demandee', 'validee', 'executee', 'revoquee', 'refusee'];
 export const LIB_STATUT = {
   demandee: 'Demandée',
   validee: 'Validée',
   executee: 'Exécutée',
   revoquee: 'Révoquée',
+  refusee: 'Refusée',
 };
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
 // --- Catalogue ---------------------------------------------------------------
 
-/** Applications avec leur catégorie. `actives` : seulement les actives. */
 export function listerApplications({ actives = false } = {}) {
   return ouvrirDb()
     .prepare(
@@ -56,7 +53,7 @@ export function agentParMatricule(matricule) {
   return ouvrirDb().prepare('SELECT * FROM agents WHERE matricule = ?').get(String(matricule ?? '').trim());
 }
 
-/** Retrouve un agent par matricule ou le crée. Complète nom/prénom/email s'ils manquaient. */
+// Complète nom, prénom et courriel s'ils manquaient.
 export function trouverOuCreerAgent({ matricule, nom, prenom, email }) {
   const m = String(matricule ?? '').trim();
   if (!m) throw new Error('Le matricule du bénéficiaire est requis.');
@@ -83,10 +80,7 @@ export function trouverOuCreerAgent({ matricule, nom, prenom, email }) {
 
 // --- Recherche -----------------------------------------------------------------
 
-/**
- * Agents correspondant à un terme (matricule, nom ou prénom), chacun avec ses
- * habilitations enrichies : la vue « qui a quoi, où, depuis quand, prouvé par quoi ».
- */
+// Terme cherché dans le matricule, le nom et le prénom.
 export function rechercherAgents(terme, { limite = 50 } = {}) {
   const q = `%${String(terme ?? '').trim()}%`;
   const agents = ouvrirDb()
@@ -141,23 +135,57 @@ export function habilitationParId(id) {
   return h;
 }
 
-/** Libellé lisible des UF d'une habilitation (référentiel puis saisie libre). */
+// Référentiel d'abord, saisie libre ensuite.
 export function libelleUfs(h) {
   const codes = (h.ufs ?? []).map((u) => u.code);
   if (h.uf_libre) codes.push(h.uf_libre);
   return codes.join(', ');
 }
 
-/**
- * Toutes les habilitations pour le suivi, filtrables par statut, application et
- * texte libre (agent, profil). Triées des plus récentes aux plus anciennes.
- */
-export function listerHabilitations({ statut = '', applicationId = 0, q = '', limite = 500 } = {}) {
+// Liste blanche : la valeur reçue de l'URL n'entre jamais telle quelle en SQL.
+export const TRIS = {
+  id: 'h.id',
+  agent: 'ag.nom',
+  application: 'a.libelle',
+  role: 'h.role',
+  demande: 'h.date_demande',
+  realisation: 'h.date_realisation',
+  statut: 'h.statut',
+  preuves: 'nb_preuves',
+};
+
+// La file : ouvertures en cours et accès ouverts dont la fermeture est demandée.
+export const CONDITION_FILE = `(h.statut IN ('demandee','validee')
+  OR (h.statut = 'executee' AND h.retrait_demande_le IS NOT NULL))`;
+
+function filtres({
+  statut = '', statuts = [], applicationId = 0, applicationIds = null, q = '', sansPreuve = false,
+  file = false, assigneA = '', nonAssignees = false, retraitDemande = false,
+}) {
   const cond = [];
   const args = [];
+  if (file) cond.push(CONDITION_FILE);
+  if (Array.isArray(applicationIds)) {
+    if (!applicationIds.length) cond.push('0');
+    else {
+      cond.push(`h.application_id IN (${applicationIds.map(() => '?').join(',')})`);
+      args.push(...applicationIds.map(Number));
+    }
+  }
+  if (retraitDemande) cond.push('h.retrait_demande_le IS NOT NULL');
+  if (assigneA) {
+    cond.push('h.assigne_a = ?');
+    args.push(assigneA);
+  }
+  if (nonAssignees) cond.push('h.assigne_a IS NULL');
   if (statut && STATUTS.includes(statut)) {
     cond.push('h.statut = ?');
     args.push(statut);
+  }
+  const plusieurs = statuts.filter((s) => STATUTS.includes(s));
+  if (plusieurs.length) {
+    cond.push(`h.statut IN (${plusieurs.map(() => '?').join(',')})`);
+    args.push(...plusieurs);
   }
   if (Number(applicationId)) {
     cond.push('h.application_id = ?');
@@ -169,7 +197,24 @@ export function listerHabilitations({ statut = '', applicationId = 0, q = '', li
     cond.push('(ag.matricule LIKE ? OR ag.nom LIKE ? OR ag.prenom LIKE ? OR h.role LIKE ? OR a.libelle LIKE ?)');
     args.push(like, like, like, like, like);
   }
-  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+  if (sansPreuve) {
+    cond.push(`h.statut IN ('validee','executee')
+      AND NOT EXISTS (SELECT 1 FROM preuves p WHERE p.habilitation_id = h.id)`);
+  }
+  return { where: cond.length ? `WHERE ${cond.join(' AND ')}` : '', args };
+}
+
+// Filtre, tri et pagination en base : un registre d'établissement est volumineux.
+export function listerHabilitations({
+  statut = '', statuts = [], applicationId = 0, applicationIds = null, q = '', sansPreuve = false,
+  file = false, assigneA = '', nonAssignees = false, retraitDemande = false,
+  tri = '', sens = 'desc', limite = 500, offset = 0,
+} = {}) {
+  const { where, args } = filtres({
+    statut, statuts, applicationId, applicationIds, q, sansPreuve, file, assigneA, nonAssignees, retraitDemande,
+  });
+  const colonne = TRIS[tri] ?? 'h.cree_le';
+  const ordre = String(sens).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   return ouvrirDb()
     .prepare(
       `SELECT h.*, a.code AS app_code, a.libelle AS app_libelle,
@@ -179,12 +224,42 @@ export function listerHabilitations({ statut = '', applicationId = 0, q = '', li
          JOIN applications a ON a.id = h.application_id
          JOIN agents ag ON ag.id = h.agent_id
         ${where}
-        ORDER BY h.cree_le DESC, h.id DESC LIMIT ?`,
+        ORDER BY ${colonne} ${ordre}, h.id DESC LIMIT ? OFFSET ?`,
     )
-    .all(...args, limite);
+    .all(...args, limite, offset);
 }
 
-/** Demandes déposées par un utilisateur (son historique personnel). */
+// Mêmes lignes, enrichies des UF et du site : l'export doit valoir la fiche.
+export function exporterHabilitations(criteres = {}) {
+  const db = ouvrirDb();
+  const lignes = listerHabilitations({ ...criteres, limite: 100000 });
+  const ufs = db
+    .prepare(
+      `SELECT hu.habilitation_id, group_concat(u.code, ' ') codes
+         FROM habilitation_ufs hu JOIN ufs u ON u.id = hu.uf_id GROUP BY hu.habilitation_id`,
+    )
+    .all();
+  const parId = new Map(ufs.map((r) => [r.habilitation_id, r.codes]));
+  const sites = new Map(db.prepare('SELECT id, nom FROM sites').all().map((s) => [s.id, s.nom]));
+  return lignes.map((h) => ({
+    ...h,
+    ufs_codes: [parId.get(h.id), h.uf_libre].filter(Boolean).join(' '),
+    site_nom: sites.get(h.site_id) ?? '',
+  }));
+}
+
+export function compterHabilitations(criteres = {}) {
+  const { where, args } = filtres(criteres);
+  return ouvrirDb()
+    .prepare(
+      `SELECT COUNT(*) n FROM habilitations h
+         JOIN applications a ON a.id = h.application_id
+         JOIN agents ag ON ag.id = h.agent_id
+        ${where}`,
+    )
+    .get(...args).n;
+}
+
 export function listerDemandesDe(login) {
   return ouvrirDb()
     .prepare(
@@ -199,11 +274,8 @@ export function listerDemandesDe(login) {
 
 // --- Création et cycle de vie ---------------------------------------------------
 
-/**
- * Crée une demande d'habilitation (statut « demandée »). `donnees` :
- *   agent { matricule, nom, prenom, email }, applicationId, role, ufIds[], ufLibre,
- *   siteId, demandeur, pourAutrui, commentaire, dateDemande.
- */
+// `donnees` : agent { matricule, nom, prenom, email }, applicationId, role,
+// ufIds[], ufLibre, siteId, demandeur, pourAutrui, commentaire, dateDemande.
 export function creerHabilitation(acteur, donnees) {
   const db = ouvrirDb();
   const application = applicationParId(donnees.applicationId);
@@ -252,7 +324,7 @@ export function creerHabilitation(acteur, donnees) {
   return habilitationParId(id);
 }
 
-/** Applique un pack « nouvel arrivant » : une demande par élément, pour un même agent. */
+// Une demande par élément du pack, pour un même agent.
 export function appliquerPack(acteur, pack, donnees) {
   if (!pack?.elements?.length) throw new Error('Ce pack ne contient aucun accès.');
   const creees = transaction(() =>
@@ -278,19 +350,63 @@ export function appliquerPack(acteur, pack, donnees) {
   return creees;
 }
 
+// Une demande pour plusieurs applications : N habilitations, un référent chacune. lignes = [{ applicationId, role }].
+export function creerDemandeMultiple(acteur, { lignes = [], ...commun } = {}) {
+  const retenues = lignes
+    .map((l) => ({ applicationId: Number(l.applicationId), role: String(l.role ?? '').trim() }))
+    .filter((l) => l.applicationId);
+  if (!retenues.length) throw new Error('Sélectionnez au moins une application.');
+  const sansProfil = retenues.find((l) => !l.role);
+  if (sansProfil) {
+    const app = applicationParId(sansProfil.applicationId);
+    throw new Error(`Indiquez le profil demandé pour ${app?.libelle ?? 'chaque application'}.`);
+  }
+  return transaction(() => retenues.map((l) => creerHabilitation(acteur, { ...commun, ...l })));
+}
+
+// Départ d'un agent : une demande de fermeture sur chacun de ses accès ouverts.
+export function signalerDepart(acteur, { matricule, motif = '', demandeur = '', applicationIds = null } = {}) {
+  const agent = agentParMatricule(matricule);
+  if (!agent) throw new Error('Aucun agent de ce matricule au registre.');
+  const m = String(motif ?? '').trim().slice(0, 300);
+  if (!m) throw new Error('Indiquez le motif : départ, mutation, fin de contrat.');
+
+  const db = ouvrirDb();
+  const limite = Array.isArray(applicationIds) && applicationIds.length
+    ? `AND application_id IN (${applicationIds.map(() => '?').join(',')})`
+    : '';
+  const ouverts = db
+    .prepare(
+      `SELECT id FROM habilitations
+        WHERE agent_id = ? AND statut = 'executee' AND retrait_demande_le IS NULL ${limite}
+        ORDER BY id`,
+    )
+    .all(agent.id, ...(limite ? applicationIds.map(Number) : []));
+
+  const dejaDemandes = db
+    .prepare("SELECT COUNT(*) n FROM habilitations WHERE agent_id = ? AND statut = 'executee' AND retrait_demande_le IS NOT NULL")
+    .get(agent.id).n;
+
+  const traites = transaction(() => ouverts.map((h) => demanderRetrait(acteur, h.id, { motif: m, demandeur })));
+  tracer(acteur, 'depart:signaler', {
+    entite: 'agent',
+    entiteId: agent.id,
+    details: { matricule: agent.matricule, motif: m, acces: traites.length, dejaDemandes },
+  });
+  return { agent, fermeturesDemandees: traites.length, dejaDemandes, habilitations: traites };
+}
+
 const TRANSITIONS = {
   valider: { de: ['demandee'], vers: 'validee', champDate: 'date_validation' },
   executer: { de: ['demandee', 'validee'], vers: 'executee', champDate: 'date_realisation' },
   revoquer: { de: ['demandee', 'validee', 'executee'], vers: 'revoquee', champDate: 'date_revocation' },
+  // Un refus doit rester distinct d'une révocation : l'accès n'a jamais existé.
+  refuser: { de: ['demandee', 'validee'], vers: 'refusee', champDate: 'date_refus', motifRequis: true },
 };
 
 export const ACTIONS_STATUT = Object.freeze(Object.keys(TRANSITIONS));
 
-/**
- * Change le statut d'une habilitation selon la machine à états. La mise à jour est
- * conditionnée au statut de départ (`WHERE statut IN …`) : deux référents qui
- * agissent en même temps ne peuvent pas s'écraser mutuellement.
- */
+// Conditionné au statut de départ : deux référents simultanés ne s'écrasent pas.
 export function changerStatut(acteur, id, action, { motif = '' } = {}) {
   if (!Object.hasOwn(TRANSITIONS, action)) throw new Error(`Action inconnue : ${action}`);
   const t = TRANSITIONS[action];
@@ -300,6 +416,9 @@ export function changerStatut(acteur, id, action, { motif = '' } = {}) {
   if (!t.de.includes(h.statut)) {
     throw new Error(`Impossible de « ${action} » une habilitation au statut « ${LIB_STATUT[h.statut]} ».`);
   }
+  const m = String(motif ?? '').trim();
+  if (t.motifRequis && !m) throw new Error('Un refus doit être motivé : le demandeur doit pouvoir le lire.');
+
   const marqueurs = t.de.map(() => '?').join(', ');
   const r = db
     .prepare(
@@ -308,11 +427,83 @@ export function changerStatut(acteur, id, action, { motif = '' } = {}) {
     )
     .run(t.vers, aujourdhui(), Number(id), ...t.de);
   if (r.changes === 0) throw new Error('Le statut a été modifié entre-temps par un autre utilisateur.');
-  const m = String(motif ?? '').trim();
+
+  // La fermeture exécutée solde la demande qui l'a déclenchée.
+  const suiteDe = action === 'revoquer' && h.retrait_demande_le
+    ? { suiteA: 'demande de fermeture', demandeePar: h.retrait_demande_par, motifDemande: h.retrait_motif }
+    : {};
+  if (action === 'revoquer' || action === 'refuser') {
+    db.prepare(
+      `UPDATE habilitations SET retrait_demande_le = NULL, retrait_demande_par = NULL, retrait_motif = NULL,
+              assigne_a = NULL, assigne_le = NULL WHERE id = ?`,
+    ).run(Number(id));
+  }
   tracer(acteur, `habilitation:${action}`, {
     entite: 'habilitation',
     entiteId: Number(id),
-    details: { de: h.statut, vers: t.vers, ...(m ? { motif: m } : {}) },
+    details: { de: h.statut, vers: t.vers, ...(m ? { motif: m } : {}), ...suiteDe },
+  });
+  return habilitationParId(id);
+}
+
+// Une file partagée sans nom dessus n'est traitée par personne.
+export function assigner(acteur, id, login) {
+  const db = ouvrirDb();
+  const h = db.prepare('SELECT * FROM habilitations WHERE id = ?').get(Number(id));
+  if (!h) throw new Error('Habilitation introuvable.');
+  if (!['demandee', 'validee'].includes(h.statut) && !h.retrait_demande_le) {
+    throw new Error("Cette habilitation n'est pas dans la file de traitement.");
+  }
+  const qui = String(login ?? '').trim() || null;
+  db.prepare(
+    `UPDATE habilitations SET assigne_a = ?, assigne_le = ${qui ? "datetime('now')" : 'NULL'},
+            maj_le = datetime('now') WHERE id = ?`,
+  ).run(qui, Number(id));
+  tracer(acteur, qui ? 'habilitation:assigner' : 'habilitation:desassigner', {
+    entite: 'habilitation',
+    entiteId: Number(id),
+    details: qui ? { a: qui } : {},
+  });
+  return habilitationParId(id);
+}
+
+// L'accès reste ouvert : seul le référent le ferme, la demande n'est qu'un signalement.
+export function demanderRetrait(acteur, id, { motif = '', demandeur = '' } = {}) {
+  const db = ouvrirDb();
+  const h = db.prepare('SELECT * FROM habilitations WHERE id = ?').get(Number(id));
+  if (!h) throw new Error('Habilitation introuvable.');
+  if (h.statut !== 'executee') throw new Error('Seul un accès ouvert peut faire l’objet d’une demande de fermeture.');
+  if (h.retrait_demande_le) throw new Error('Une fermeture est déjà demandée pour cet accès.');
+  const m = String(motif ?? '').trim().slice(0, 300);
+  if (!m) throw new Error('Indiquez le motif de la fermeture : départ, mutation, fin de mission.');
+
+  const r = db
+    .prepare(
+      `UPDATE habilitations SET retrait_demande_le = datetime('now'), retrait_demande_par = ?,
+              retrait_motif = ?, maj_le = datetime('now')
+        WHERE id = ? AND statut = 'executee' AND retrait_demande_le IS NULL`,
+    )
+    .run(String(demandeur || acteur).slice(0, 120), m, Number(id));
+  if (r.changes === 0) throw new Error('La demande a été enregistrée entre-temps par un autre utilisateur.');
+  tracer(acteur, 'retrait:demander', { entite: 'habilitation', entiteId: Number(id), details: { motif: m } });
+  return habilitationParId(id);
+}
+
+export function refuserRetrait(acteur, id, { motif = '' } = {}) {
+  const db = ouvrirDb();
+  const h = db.prepare('SELECT * FROM habilitations WHERE id = ?').get(Number(id));
+  if (!h) throw new Error('Habilitation introuvable.');
+  if (!h.retrait_demande_le) throw new Error('Aucune fermeture n’est demandée pour cet accès.');
+  const m = String(motif ?? '').trim().slice(0, 300);
+  if (!m) throw new Error('Un refus de fermeture doit être motivé.');
+  db.prepare(
+    `UPDATE habilitations SET retrait_demande_le = NULL, retrait_demande_par = NULL, retrait_motif = NULL,
+            assigne_a = NULL, assigne_le = NULL, maj_le = datetime('now') WHERE id = ?`,
+  ).run(Number(id));
+  tracer(acteur, 'retrait:refuser', {
+    entite: 'habilitation',
+    entiteId: Number(id),
+    details: { motif: m, demandeePar: h.retrait_demande_par, motifDemande: h.retrait_motif },
   });
   return habilitationParId(id);
 }
