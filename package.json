@@ -1,0 +1,61 @@
+{
+  "name": "registris",
+  "version": "0.3.0",
+  "description": "Registre des habilitations et coffre à preuves d'audit pour les établissements publics de santé : qui a obtenu quel accès, sur quel logiciel, sur quelles UF, quand, sur la base de quelle demande, prouvé par quelle pièce.",
+  "keywords": [
+    "habilitations",
+    "acces",
+    "audit",
+    "cac",
+    "certification-des-comptes",
+    "pgssi-s",
+    "hopital",
+    "fph",
+    "ldap",
+    "active-directory",
+    "sqlite"
+  ],
+  "homepage": "https://quentincazier.github.io/registris/",
+  "bugs": "https://github.com/QuentinCazier/registris/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QuentinCazier/registris.git"
+  },
+  "license": "EUPL-1.2",
+  "author": "Quentin Cazier",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "registris": "./src/cli.js"
+  },
+  "files": [
+    "src",
+    "public",
+    "docs",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "scripts": {
+    "start": "node src/cli.js servir",
+    "init": "node src/cli.js init",
+    "demo": "node src/cli.js demo",
+    "test": "node --test \"tests/*.test.js\"",
+    "audit": "npm audit --omit=dev --audit-level=high"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "express": "^4.22.2",
+    "express-session": "^1.19.0",
+    "ldap-authentication": "^4.0.4",
+    "ldapts": "^9.0.0",
+    "multer": "^1.4.5-lts.2",
+    "nodemailer": "^9.0.3"
+  },
+  "overrides": {
+    "qs": "^6.15.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

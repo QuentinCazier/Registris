@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#12558f">
+<title>Registris : registre des habilitations et coffre à preuves d'audit</title>
+<meta name="description" content="Registris est un logiciel libre pour les établissements publics de santé : qui a obtenu quel accès, sur quel logiciel, quand, à la demande de qui, prouvé par quelle pièce. Journal chaîné, coffre à preuves, revue périodique, dossier d'audit en un clic.">
+<meta property="og:title" content="Registris : registre des habilitations et coffre à preuves d'audit">
+<meta property="og:description" content="Logiciel libre pour les établissements publics de santé : le registre des accès, les pièces, le journal chaîné et le dossier de preuves que demande l'auditeur.">
+<meta property="og:image" content="https://quentincazier.github.io/registris/captures/banniere.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="favicon.ico">
+<style>
+@font-face{font-family:"Registris Sans";src:url("polices/atkinson-sans.woff2") format("woff2-variations");font-weight:200 700;font-display:swap}
+@font-face{font-family:"Registris Mono";src:url("polices/atkinson-mono.woff2") format("woff2-variations");font-weight:200 700;font-display:swap}
+:root{
+  --sans:"Registris Sans",system-ui,"Segoe UI",Roboto,sans-serif;
+  --mono:"Registris Mono",ui-monospace,Consolas,"Liberation Mono",monospace;
+  --fond:#f7f8fa;--blanc:#fff;--gris:#eef1f4;--gris-2:#fafbfc;
+  --encre:#111418;--encre-2:#535c66;--encre-3:#6b7480;
+  --filet:#e3e7eb;--filet-fort:#c9d1d9;
+  --accent:#12558f;--accent-2:#0e4373;--accent-clair:#e9f1f8;
+  --fait:#136b4c;--fait-fond:#e9f5ef;--fait-filet:#c6e4d6;
+  --attente:#8a5a00;--attente-fond:#fdf6e8;--attente-filet:#f0dfba;
+  --ombre:0 1px 2px rgba(17,20,24,.05);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--fond);color:var(--encre);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.evitement{position:absolute;left:-9999px;top:0;z-index:20;background:var(--blanc);padding:10px 14px;border-radius:0 0 8px 0}
+.evitement:focus{left:0}
+code,.mono{font-family:var(--mono);font-feature-settings:"tnum" 1}
+.micro{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--encre-3);font-weight:700}
+
+.haut{background:var(--accent);color:#fff}
+.haut .r1{max-width:1100px;margin:0 auto;padding:0 22px;height:56px;display:flex;align-items:center;gap:14px}
+.logo{display:flex;align-items:center;gap:9px;color:#fff;font-size:15.5px;font-weight:700;flex:none}
+.logo:hover{text-decoration:none}
+.logo .chip{display:inline-flex;border-radius:7px;padding:3px;background:var(--blanc)}
+.logo .chip img{width:26px;height:26px;display:block}
+.logo .et{font-weight:400;font-size:12.5px;opacity:.8;border-left:1px solid currentColor;padding-left:11px;margin-left:3px}
+.haut nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+.haut nav a{color:#fff;opacity:.9;font-size:13.5px;padding:6px 10px;border-radius:6px}
+.haut nav a:hover{background:rgba(255,255,255,.14);text-decoration:none;opacity:1}
+.haut nav a.btn-p{background:var(--blanc);color:var(--accent);font-weight:600;opacity:1}
+.haut nav a.btn-p:hover{background:var(--gris)}
+
+main{max-width:1100px;margin:0 auto;padding:36px 22px 60px}
+section{margin:0 0 44px}
+h1{font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 14px;max-width:24ch}
+h2{font-size:20px;letter-spacing:-.015em;margin:0 0 14px}
+h3{font-size:15px;margin:0 0 6px}
+p{margin:0 0 12px}
+.plomb{font-size:17px;color:var(--encre-2);max-width:66ch}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 6px}
+.btn{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:13.5px;font-weight:600;padding:9px 15px;min-height:36px;border:1px solid var(--filet-fort);background:var(--blanc);color:var(--encre);border-radius:7px;box-shadow:var(--ombre)}
+.btn:hover{background:var(--gris-2);border-color:#b8c2cc;text-decoration:none}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.faits{display:flex;flex-wrap:wrap;gap:8px 22px;margin:18px 0 0;padding:0;list-style:none;font-size:13px;color:var(--encre-2)}
+.faits li::before{content:"";display:inline-block;width:7px;height:7px;border-radius:2px;background:var(--fait);margin-right:8px;vertical-align:1px}
+
+.bloc{background:var(--blanc);border:1px solid var(--filet);border-radius:10px;box-shadow:var(--ombre);overflow:hidden}
+.bloc-tete{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--filet)}
+.bloc-tete h2{font-size:14px;margin:0}
+.bloc-tete .c{font-family:var(--mono);font-size:11.5px;color:var(--encre-3)}
+figure{margin:0}
+figure.capture{margin:26px 0 0}
+figure.capture img{display:block;width:100%;height:auto;border-bottom:1px solid var(--filet)}
+figure.capture figcaption{padding:10px 16px;font-size:12.5px;color:var(--encre-2);background:var(--gris-2)}
+
+.fonctions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--filet);border:1px solid var(--filet);border-radius:10px;overflow:hidden}
+.fonctions > div{background:var(--blanc);padding:16px 18px}
+.fonctions p{margin:0;color:var(--encre-2);font-size:14px}
+
+.deux{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+table{width:100%;border-collapse:collapse;background:var(--blanc);font-size:14px}
+caption{position:absolute;left:-9999px}
+th{text-align:left;padding:10px 14px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--encre-3);background:var(--gris-2);border-bottom:1px solid var(--filet);vertical-align:top;white-space:nowrap;width:1%}
+td{padding:10px 14px;border-bottom:1px solid var(--filet);vertical-align:top}
+tr:last-child td,tr:last-child th{border-bottom:0}
+tbody th{font-size:13.5px;letter-spacing:0;text-transform:none;color:var(--encre);font-weight:600;background:var(--blanc);border-right:1px solid var(--filet)}
+
+.puces{margin:0;padding-left:20px}
+.puces li{margin:0 0 8px}
+pre{margin:0;padding:14px 16px;background:#16181c;color:#e6e9ee;border-radius:8px;font-family:var(--mono);font-size:13px;line-height:1.6;overflow-x:auto}
+pre .c{color:#8b95a1}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.tag::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--accent)}
+.docs{list-style:none;margin:0;padding:0}
+.docs li{display:flex;gap:12px;padding:11px 16px;border-bottom:1px solid var(--filet);font-size:14px;align-items:baseline}
+.docs li:last-child{border-bottom:0}
+.docs li a{font-weight:600;white-space:nowrap}
+.docs li span{color:var(--encre-2)}
+.aparte{border-left:3px solid var(--attente);background:var(--attente-fond);padding:12px 16px;border-radius:0 8px 8px 0;font-size:14px;color:#4a3a10}
+.aparte p:last-child{margin:0}
+
+footer{border-top:1px solid var(--filet);background:var(--blanc)}
+footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color:var(--encre-2);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+
+@media (max-width:900px){
+  .fonctions,.deux{grid-template-columns:1fr}
+  h1{font-size:25px}
+  .haut .r1{height:auto;flex-wrap:wrap;padding:10px 14px}
+  main{padding:26px 14px 48px}
+  th{white-space:normal}
+}
+</style>
+</head>
+<body>
+<a class="evitement" href="#contenu">Aller au contenu</a>
+<header class="haut">
+  <div class="r1">
+    <a class="logo" href="#contenu"><span class="chip"><img src="marque.svg" alt="" width="26" height="26"></span><span>Registris</span><span class="et">logiciel libre</span></a>
+    <nav aria-label="Navigation principale">
+      <a href="#fonctions">Fonctions</a>
+      <a href="#dsi">Pour la DSI</a>
+      <a href="#demarrer">Démarrer</a>
+      <a href="#documentation">Documentation</a>
+      <a class="btn-p" href="https://github.com/QuentinCazier/registris">Code source</a>
+    </nav>
+  </div>
+</header>
+
+<main id="contenu">
+  <section aria-labelledby="titre">
+    <p class="micro">Établissements publics de santé</p>
+    <h1 id="titre">Registre des habilitations et coffre à preuves d'audit</h1>
+    <p class="plomb">Lors d'un contrôle, commissaires aux comptes, contrôle interne ou PGSSI-S, il faut prouver, matricule par matricule, qui a obtenu quel accès, sur quel logiciel, sur quelles unités fonctionnelles, quand, à la demande de qui, et sur la base de quelle pièce. Aujourd'hui la réponse est dispersée dans des mois de courriels et de tableurs.</p>
+    <p class="plomb">Registris en fait un registre unique, avec les pièces attachées et un journal qui ne se retouche pas en silence. L'auditeur transmet sa liste de matricules, le dossier de preuves complet sort en un clic.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/QuentinCazier/registris">Code source sur GitHub</a>
+      <a class="btn" href="https://github.com/QuentinCazier/registris/blob/main/docs/DEPLOIEMENT.md">Guide de déploiement</a>
+      <a class="btn" href="https://github.com/QuentinCazier/registris/blob/main/docs/AUDIT.md">S'en servir pendant un audit</a>
+    </div>
+    <ul class="faits">
+      <li>Licence EUPL-1.2</li>
+      <li>Node.js et SQLite, aucun service externe</li>
+      <li>Active Directory ou comptes locaux</li>
+      <li>Installé en cinq minutes</li>
+    </ul>
+    <figure class="capture bloc">
+      <img src="captures/accueil.png" alt="Tableau de bord de Registris : chaîne d'audit intègre, file des demandes à traiter, accès actifs par application, points de vigilance et dernières écritures" width="1440" height="1000">
+      <figcaption>Le tableau de bord : le travail qui attend, l'état de la chaîne d'audit et les points de vigilance, pas des compteurs décoratifs.</figcaption>
+    </figure>
+  </section>
+
+  <section id="fonctions" aria-labelledby="t-fonctions">
+    <h2 id="t-fonctions">Ce que fait l'outil</h2>
+    <div class="fonctions">
+      <div><h3>Demandes tracées</h3><p>Catalogue d'applications, demande pour soi ou pour un collègue, demande multiple, packs « nouvel arrivant », pièce jointe dans le même geste.</p></div>
+      <div><h3>Cycle de vie opposable</h3><p>Demandée, validée, exécutée, révoquée, refusée. Chaque transition porte une date et un acteur ; les référents n'agissent que sur leurs applications.</p></div>
+      <div><h3>Coffre à preuves</h3><p>Courriels (.msg, .eml), captures, PDF. Chaque pièce est empreintée en SHA-256 au dépôt ; son intégrité se vérifie à tout moment.</p></div>
+      <div><h3>Boîte de traitement</h3><p>La file à gauche, le dossier complet à droite. On valide, on exécute, on refuse, on joint les pièces sans changer de page, et le manque de preuve est signalé avant le bouton.</p></div>
+      <div><h3>Fermetures mesurées</h3><p>Un cadre signale un départ ou demande la fermeture d'un accès ; l'accès reste ouvert tant qu'un référent ne l'a pas fermé, et le délai entre les deux se mesure.</p></div>
+      <div><h3>Revue périodique</h3><p>Une campagne fige les accès actifs, chaque référent statue sur ses applications, et le rapport final dit aussi ce qui n'a jamais été revu.</p></div>
+      <div><h3>Rapprochement</h3><p>L'extraction des comptes d'un logiciel confrontée au registre : cinq constats, du révoqué encore présent au compte non déclaré, chaque écart soldé et tracé.</p></div>
+      <div><h3>Indicateurs de délai</h3><p>Du dépôt à l'ouverture, du signalement à la fermeture réelle, par application, en médiane et « neuf sur dix en moins de », avec les volumes mensuels.</p></div>
+      <div><h3>Dossier de preuves</h3><p>On colle les matricules échantillonnés, on obtient un ZIP horodaté : synthèse imprimable, tableau CSV, manifeste des empreintes, pièces classées par matricule.</p></div>
+      <div><h3>Journal chaîné et ancré</h3><p>Chaque écriture scelle la précédente par son empreinte ; la tête de chaîne est déposée chaque jour hors de la base. Une retouche ou un remplacement de la base se voit.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-ecrans">
+    <h2 id="t-ecrans">Deux écrans de travail</h2>
+    <div class="deux">
+      <figure class="capture bloc" style="margin:0">
+        <img src="captures/traitement.png" alt="Boîte de traitement de Registris : file des demandes à gauche, dossier de la demande sélectionnée à droite avec ses pièces et ses écritures" width="1440" height="900" loading="lazy">
+        <figcaption>La boîte de traitement : la file des demandes, le dossier et les actions.</figcaption>
+      </figure>
+      <figure class="capture bloc" style="margin:0">
+        <img src="captures/revue.png" alt="Revue périodique dans Registris : avancement par application et liste des accès à revoir avec les décisions prises" width="1440" height="1000" loading="lazy">
+        <figcaption>La revue périodique : chaque référent statue, le rapport dit ce qui reste non revu.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="dsi" aria-labelledby="t-dsi">
+    <h2 id="t-dsi">Pour la DSI</h2>
+    <div class="bloc">
+      <table>
+        <caption>Caractéristiques techniques de Registris</caption>
+        <tbody>
+          <tr><th scope="row">Prérequis</th><td>Node.js 22 ou plus récent, et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer.</td></tr>
+          <tr><th scope="row">Authentification</th><td>Active Directory par LDAPS, rôles déduits des groupes, groupes imbriqués en option, compte local de secours accepté seulement quand l'annuaire est injoignable. Ou comptes locaux.</td></tr>
+          <tr><th scope="row">Données</th><td>Un fichier SQLite et un dossier de pièces sur le disque local. Sauvegarde et restauration en une commande, avec manifeste d'empreintes. Aucune donnée patient.</td></tr>
+          <tr><th scope="row">Exposition</th><td>HTTP local derrière le reverse-proxy HTTPS de l'établissement. Aucun appel sortant : polices, scripts et images sont servis par l'application.</td></tr>
+          <tr><th scope="row">Notifications</th><td>Relais SMTP interne, facultatif. Relances des demandes en attente par une tâche planifiée.</td></tr>
+          <tr><th scope="row">Sécurité</th><td>Politique de sécurité de contenu avec nonce, jeton anti-CSRF, sessions en base, blocage après cinq échecs, pièces validées par signature binaire, exports CSV neutralisés, journal chaîné.</td></tr>
+          <tr><th scope="row">Accessibilité</th><td>Contrôles automatiques sur toutes les pages à chaque exécution des tests, documentation de ce qui est vérifié et de ce qui ne l'est pas, modèle de déclaration à compléter par l'établissement.</td></tr>
+          <tr><th scope="row">Licence</th><td>EUPL-1.2, compatible avec la politique logiciels libres de l'État. Six dépendances, aucune native.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-limites">
+    <h2 id="t-limites">Ce que l'outil ne fait pas</h2>
+    <div class="aparte">
+      <p>Il ne crée pas les comptes dans vos logiciels métier : il trace les décisions et conserve les preuves, l'exécution technique reste dans les mains de la DSI.</p>
+      <p>Il ne remplace pas un outil de gestion des incidents ou du parc. Il se concentre sur la gouvernance des accès et la preuve, et ce périmètre étroit est une décision de conception.</p>
+    </div>
+  </section>
+
+  <section id="demarrer" aria-labelledby="t-demarrer">
+    <h2 id="t-demarrer">Démarrer en cinq minutes</h2>
+    <div class="deux">
+      <div>
+        <pre><span class="c"># Node.js 22 ou plus récent</span>
+git clone https://github.com/QuentinCazier/registris.git
+cd registris
+npm install
+npm run demo   <span class="c"># base de démonstration, données fictives</span>
+npm start      <span class="c"># http://127.0.0.1:3000</span></pre>
+      </div>
+      <div class="bloc">
+        <table>
+          <caption>Comptes de démonstration, mot de passe commun demo-registris</caption>
+          <thead><tr><th scope="col">Identifiant</th><th scope="col">Rôle</th><th scope="col">Ce qu'il peut faire</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">admin</td><td><span class="tag">Administrateur</span></td><td>tout, y compris le catalogue et les comptes</td></tr>
+            <tr><td class="mono">referent</td><td><span class="tag">Référent</span></td><td>valider, exécuter, fermer sur ses applications</td></tr>
+            <tr><td class="mono">controleur</td><td><span class="tag">Contrôleur</span></td><td>lire, vérifier, produire le dossier de preuves</td></tr>
+            <tr><td class="mono">agent</td><td><span class="tag">Utilisateur</span></td><td>déposer des demandes, joindre des pièces</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="documentation" aria-labelledby="t-docs">
+    <h2 id="t-docs">Documentation</h2>
+    <div class="bloc">
+      <ul class="docs">
+        <li><a href="https://github.com/QuentinCazier/registris#readme">README</a><span>ce que fait l'outil, ce qu'il ne fait pas, architecture, sécurité.</span></li>
+        <li><a href="https://github.com/QuentinCazier/registris/blob/main/docs/DEPLOIEMENT.md">Déploiement</a><span>reverse-proxy HTTPS, Active Directory, certificat, compte de secours, SMTP, sauvegardes, tâches à planifier.</span></li>
+        <li><a href="https://github.com/QuentinCazier/registris/blob/main/docs/AUDIT.md">Pendant un audit</a><span>ce que demandent les auditeurs, ce que fournit l'outil, comment préparer l'établissement.</span></li>
+        <li><a href="https://github.com/QuentinCazier/registris/blob/main/docs/ACCESSIBILITE.md">Accessibilité</a><span>ce qui est vérifié, ce qui ne l'est pas, modèle de déclaration.</span></li>
+        <li><a href="https://github.com/QuentinCazier/registris/blob/main/SECURITY.md">Sécurité</a><span>mesures en place, choix assumés, revue de la version, signalement d'une faille.</span></li>
+        <li><a href="https://github.com/QuentinCazier/registris/blob/main/CHANGELOG.md">Journal des versions</a><span>ce qui change d'une version à l'autre.</span></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="in">
+    <span>Registris, logiciel libre sous licence EUPL-1.2. Code, tickets et contributions sur <a href="https://github.com/QuentinCazier/registris">GitHub</a>.</span>
+    <span>Polices Atkinson Hyperlegible Next, licence SIL Open Font.</span>
+  </div>
+</footer>
+</body>
+</html>

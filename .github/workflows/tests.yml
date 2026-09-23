@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Démonstration et vérification de bout en bout
+        run: |
+          node src/cli.js demo
+          node src/cli.js ancrer
+          node src/cli.js verifier
+          node src/cli.js sauvegarder sortie-test
+      - run: npm audit --omit=dev --audit-level=high
