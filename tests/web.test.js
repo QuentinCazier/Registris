@@ -783,7 +783,7 @@ test('demande multiple : une seule saisie, autant de demandes que d applications
   // La pièce justifie chacun des accès : à l'audit, aucune fiche ne renvoie à une voisine.
   const ids = [...miennes.matchAll(/href="\/habilitations\/(\d+)"/g)].map((m) => Number(m[1]));
   let avecPiece = 0;
-  for (const id of ids.slice(0, 6)) {
+  for (const id of ids) {
     const f = await (await agent.go(`/habilitations/${id}`)).text();
     if (/groupée/.test(f) && /demande-groupee\.eml/.test(f)) avecPiece += 1;
   }
