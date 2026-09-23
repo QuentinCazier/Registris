@@ -1,6 +1,6 @@
 # Registris
 
-![Registris : registre des habilitations et coffre à preuves d'audit pour les établissements publics de santé](docs/captures/banniere.png)
+![Registris : registre des habilitations et coffre à preuves d'audit pour les établissements publics de santé](site/captures/banniere.png)
 
 **Registre des habilitations et coffre à preuves d'audit pour les établissements
 publics de santé.**
@@ -20,15 +20,15 @@ clic.
 > sans aucun service externe. Présentation en ligne :
 > <https://quentincazier.github.io/registris/>.
 
-![Tableau de bord de Registris](docs/captures/accueil.png)
+![Tableau de bord de Registris](site/captures/accueil.png)
 
 La boîte de traitement : la file des demandes à gauche, le dossier complet et les actions à droite.
 
-![Boîte de traitement de Registris](docs/captures/traitement.png)
+![Boîte de traitement de Registris](site/captures/traitement.png)
 
 La revue périodique : chaque référent statue sur ses applications, et le rapport final dit aussi ce qui n'a pas été revu.
 
-![Revue périodique dans Registris](docs/captures/revue.png)
+![Revue périodique dans Registris](site/captures/revue.png)
 
 ## Ce que fait l'outil
 
