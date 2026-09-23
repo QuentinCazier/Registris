@@ -99,7 +99,7 @@ export function habilitationsDeAgent(agentId) {
       `SELECT h.*, a.code AS app_code, a.libelle AS app_libelle,
               (SELECT COUNT(*) FROM preuves p WHERE p.habilitation_id = h.id) AS nb_preuves
          FROM habilitations h JOIN applications a ON a.id = h.application_id
-        WHERE h.agent_id = ? ORDER BY h.cree_le DESC`,
+        WHERE h.agent_id = ? ORDER BY h.cree_le DESC, h.id DESC`,
     )
     .all(Number(agentId));
   const ufStmt = db.prepare(
@@ -267,7 +267,7 @@ export function listerDemandesDe(login) {
          FROM habilitations h
          JOIN applications a ON a.id = h.application_id
          JOIN agents ag ON ag.id = h.agent_id
-        WHERE h.cree_par = ? ORDER BY h.cree_le DESC`,
+        WHERE h.cree_par = ? ORDER BY h.cree_le DESC, h.id DESC`,
     )
     .all(login);
 }
