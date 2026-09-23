@@ -23,7 +23,7 @@ démonstration (`npm run demo`).
 ## Code
 
 ```bash
-git clone https://github.com/QuentinCazier/registris.git
+git clone https://github.com/QuentinCazier/Registris.git
 cd registris
 npm install
 npm test

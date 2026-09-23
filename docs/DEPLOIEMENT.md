@@ -14,7 +14,7 @@ Directory, sauvegardée.
   de la VM**, jamais sur un partage réseau (risque de corruption).
 
 ```bash
-git clone https://github.com/QuentinCazier/registris.git
+git clone https://github.com/QuentinCazier/Registris.git
 cd registris
 npm install --omit=dev
 cp .env.example .env

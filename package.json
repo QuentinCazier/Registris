@@ -15,11 +15,11 @@
     "active-directory",
     "sqlite"
   ],
-  "homepage": "https://quentincazier.github.io/registris/",
-  "bugs": "https://github.com/QuentinCazier/registris/issues",
+  "homepage": "https://quentincazier.github.io/Registris/",
+  "bugs": "https://github.com/QuentinCazier/Registris/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QuentinCazier/registris.git"
+    "url": "git+https://github.com/QuentinCazier/Registris.git"
   },
   "license": "EUPL-1.2",
   "author": "Quentin Cazier",

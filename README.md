@@ -18,7 +18,7 @@ clic.
 
 > Logiciel libre (licence EUPL-1.2). Fonctionne entièrement sur votre réseau,
 > sans aucun service externe. Présentation en ligne :
-> <https://quentincazier.github.io/registris/>.
+> <https://quentincazier.github.io/Registris/>.
 
 ![Tableau de bord de Registris](site/captures/accueil.png)
 
@@ -136,7 +136,7 @@ Prérequis : [Node.js](https://nodejs.org) 22 ou plus récent. Aucune base de
 données à installer (SQLite intégré), aucun compilateur.
 
 ```bash
-git clone https://github.com/QuentinCazier/registris.git
+git clone https://github.com/QuentinCazier/Registris.git
 cd registris
 npm install
 npm run demo      # base de démonstration (données fictives)
