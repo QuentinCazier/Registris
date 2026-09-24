@@ -79,6 +79,14 @@ figure.capture figcaption{padding:10px 16px;font-size:12.5px;color:var(--encre-2
 .fonctions p{margin:0;color:var(--encre-2);font-size:14px}
 
 .deux{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.trois{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.deux>*,.trois>*{min-width:0}
+.table-defile{overflow-x:auto}
+.voie{display:flex;flex-direction:column}
+.voie .corps{padding:14px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.voie .corps p{margin:0;font-size:14px;color:var(--encre-2)}
+.voie pre{font-size:12px}
+.voie .lien{margin-top:auto;font-size:13.5px;font-weight:600}
 .deux figure.capture img{aspect-ratio:16/10;object-fit:cover;object-position:top left}
 table{width:100%;border-collapse:collapse;background:var(--blanc);font-size:14px}
 caption{position:absolute;left:-9999px}
@@ -105,7 +113,7 @@ footer{border-top:1px solid var(--filet);background:var(--blanc)}
 footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color:var(--encre-2);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
 
 @media (max-width:900px){
-  .fonctions,.deux{grid-template-columns:1fr}
+  .fonctions,.deux,.trois{grid-template-columns:1fr}
   h1{font-size:25px}
   .haut .r1{height:auto;flex-wrap:wrap;padding:10px 14px}
   main{padding:26px 14px 48px}
@@ -121,7 +129,8 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
     <nav aria-label="Navigation principale">
       <a href="#fonctions">Fonctions</a>
       <a href="#dsi">Pour la DSI</a>
-      <a href="#demarrer">Démarrer</a>
+      <a href="#installer">Installer</a>
+      <a href="#essayer">Essayer</a>
       <a href="#documentation">Documentation</a>
       <a class="btn-p" href="https://github.com/QuentinCazier/Registris">Code source</a>
     </nav>
@@ -135,15 +144,17 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
     <p class="plomb">Lors d'un contrôle, commissaires aux comptes, contrôle interne ou PGSSI-S, il faut prouver, matricule par matricule, qui a obtenu quel accès, sur quel logiciel, sur quelles unités fonctionnelles, quand, à la demande de qui, et sur la base de quelle pièce. Aujourd'hui la réponse est dispersée dans des mois de courriels et de tableurs.</p>
     <p class="plomb">Registris en fait un registre unique, avec les pièces attachées et un journal qui ne se retouche pas en silence. L'auditeur transmet sa liste de matricules, le dossier de preuves complet sort en un clic.</p>
     <div class="actions">
-      <a class="btn btn-primary" href="https://github.com/QuentinCazier/Registris">Code source sur GitHub</a>
-      <a class="btn" href="https://github.com/QuentinCazier/Registris/blob/main/docs/DEPLOIEMENT.md">Guide de déploiement</a>
+      <a class="btn btn-primary" href="https://github.com/QuentinCazier/Registris/releases/latest">Télécharger la dernière version</a>
+      <a class="btn" href="#installer">Installer sur un serveur</a>
+      <a class="btn" href="https://github.com/QuentinCazier/Registris">Code source sur GitHub</a>
       <a class="btn" href="https://github.com/QuentinCazier/Registris/blob/main/docs/AUDIT.md">S'en servir pendant un audit</a>
     </div>
     <ul class="faits">
       <li>Licence EUPL-1.2</li>
       <li>Node.js et SQLite, aucun service externe</li>
       <li>Active Directory ou comptes locaux</li>
-      <li>Installé en cinq minutes</li>
+      <li>Windows Server, Linux ou Docker</li>
+      <li>Installateur sans accès à internet</li>
     </ul>
     <figure class="capture bloc">
       <img src="captures/accueil.png" alt="Tableau de bord de Registris : chaîne d'audit intègre, file des demandes à traiter, accès actifs par application, points de vigilance et dernières écritures" width="1440" height="1000">
@@ -187,10 +198,12 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
       <table>
         <caption>Caractéristiques techniques de Registris</caption>
         <tbody>
-          <tr><th scope="row">Prérequis</th><td>Node.js 22 ou plus récent, et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer. L'archive de release contient les dépendances, sans accès à internet.</td></tr>
+          <tr><th scope="row">Prérequis</th><td>Node.js 22 ou plus récent, et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer. L'archive de release contient les dépendances : le serveur n'a besoin ni d'internet ni de <code>npm</code>. Ou Docker, sans Node.js.</td></tr>
           <tr><th scope="row">Authentification</th><td>Active Directory par LDAPS, rôles déduits des groupes, groupes imbriqués en option, compte local de secours accepté seulement quand l'annuaire est injoignable. Ou comptes locaux.</td></tr>
           <tr><th scope="row">Données</th><td>Un fichier SQLite et un dossier de pièces sur le disque local. Sauvegarde et restauration en une commande, avec manifeste d'empreintes. Aucune donnée patient.</td></tr>
-          <tr><th scope="row">Exposition</th><td>HTTP local derrière le reverse-proxy HTTPS de l'établissement. Aucun appel sortant : polices, scripts et images sont servis par l'application.</td></tr>
+          <tr><th scope="row">Exposition</th><td>HTTPS direct avec un certificat PEM ou PFX de votre PKI (auto-signé à défaut), ou HTTP local derrière le reverse-proxy de l'établissement. Aucun appel sortant : polices, scripts et images sont servis par l'application.</td></tr>
+          <tr><th scope="row">Exploitation</th><td>Service Windows ou service systemd durci, configuration hors du dossier de l'application pour des mises à jour sans retouche, sonde <code>/sante</code> pour la supervision, sauvegarde et ancrage planifiés.</td></tr>
+          <tr><th scope="row">Livraison</th><td>Chaque release publie l'archive, ses sommes SHA-256, une nomenclature logicielle CycloneDX et l'image Docker, construites et testées par l'intégration continue.</td></tr>
           <tr><th scope="row">Notifications</th><td>Relais SMTP interne, facultatif. Relances des demandes en attente par une tâche planifiée.</td></tr>
           <tr><th scope="row">Sécurité</th><td>Politique de sécurité de contenu avec nonce, jeton anti-CSRF, sessions en base, blocage après cinq échecs, pièces validées par signature binaire, exports CSV neutralisés, journal chaîné.</td></tr>
           <tr><th scope="row">Accessibilité</th><td>Contrôles automatiques sur toutes les pages à chaque exécution des tests, documentation de ce qui est vérifié et de ce qui ne l'est pas, modèle de déclaration à compléter par l'établissement.</td></tr>
@@ -208,19 +221,58 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
     </div>
   </section>
 
-  <section id="demarrer" aria-labelledby="t-demarrer">
-    <h2 id="t-demarrer">Démarrer en cinq minutes</h2>
-    <p class="plomb" style="font-size:15px">Sur un serveur, la <a href="https://github.com/QuentinCazier/Registris/releases">dernière release</a> fournit une archive avec les dépendances, un installateur Windows (service, HTTPS, compte administrateur), un script Linux et une image Docker : voir le <a href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md">guide d'installation</a>. Pour essayer sur un poste :</p>
+  <section id="installer" aria-labelledby="t-installer">
+    <h2 id="t-installer">Installer sur un serveur</h2>
+    <p class="plomb" style="font-size:15px">Tout part de la <a href="https://github.com/QuentinCazier/Registris/releases/latest">dernière release</a> : une archive <code>.zip</code> ou <code>.tar.gz</code> qui contient l'application avec ses dépendances, les installateurs et la documentation. Choisissez la voie qui correspond à votre serveur.</p>
+    <div class="trois">
+      <div class="bloc voie">
+        <div class="bloc-tete"><h3 style="margin:0;font-size:14px">Windows Server</h3><span class="c">installer.cmd</span></div>
+        <div class="corps">
+          <p>Node.js 22 installé, archive décompressée, un clic droit « exécuter en tant qu'administrateur ». L'installateur crée le service Windows, le certificat, le compte administrateur et la règle de pare-feu.</p>
+          <pre>installation\windows\installer.cmd</pre>
+          <p>Relancé sur une nouvelle archive, il met à jour sans toucher à la configuration ni aux données.</p>
+          <a class="lien" href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md#windows-server">Guide Windows</a>
+        </div>
+      </div>
+      <div class="bloc voie">
+        <div class="bloc-tete"><h3 style="margin:0;font-size:14px">Linux avec systemd</h3><span class="c">installer.sh</span></div>
+        <div class="corps">
+          <p>Un service durci sous un utilisateur dédié, un certificat auto-signé ou le vôtre, et une minuterie qui sauvegarde, ancre, relance et vérifie chaque nuit.</p>
+          <pre>tar -xzf registris-0.3.0.tar.gz
+cd registris-0.3.0
+sudo installation/linux/installer.sh \
+  --etablissement "CH de Ville"</pre>
+          <a class="lien" href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md#linux-avec-systemd">Guide Linux</a>
+        </div>
+      </div>
+      <div class="bloc voie">
+        <div class="bloc-tete"><h3 style="margin:0;font-size:14px">Docker ou Proxmox</h3><span class="c">docker compose</span></div>
+        <div class="corps">
+          <p>Une image sans privilège, les données dans un volume, une sonde de santé. Le fichier Compose fourni sert de point de départ.</p>
+          <pre>docker compose up -d
+docker compose exec registris \
+  node src/cli.js utilisateur \
+  admin admin "Administrateur"</pre>
+          <a class="lien" href="https://github.com/QuentinCazier/Registris/blob/main/installation/docker/docker-compose.yml">Fichier Compose</a>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:16px;font-size:14px;color:var(--encre-2)">Chaque release fournit un fichier <code>SHA256SUMS</code> pour vérifier l'archive avant installation, et une nomenclature logicielle CycloneDX pour l'inventaire des dépendances. L'image est publiée sous <code>ghcr.io/quentincazier/registris</code>. Tout est détaillé dans le <a href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md">guide d'installation</a>.</p>
+  </section>
+
+  <section id="essayer" aria-labelledby="t-essayer">
+    <h2 id="t-essayer">Essayer sur un poste</h2>
+    <p class="plomb" style="font-size:15px">Pour découvrir l'outil avec des données fictives, le dépôt et Node.js suffisent.</p>
     <div class="deux">
       <div>
         <pre><span class="c"># Node.js 22 ou plus récent</span>
 git clone https://github.com/QuentinCazier/Registris.git
-cd registris
+cd Registris
 npm install
 npm run demo   <span class="c"># base de démonstration, données fictives</span>
 npm start      <span class="c"># http://127.0.0.1:3000</span></pre>
       </div>
-      <div class="bloc">
+      <div class="bloc table-defile">
         <table>
           <caption>Comptes de démonstration, mot de passe commun demo-registris</caption>
           <thead><tr><th scope="col">Identifiant</th><th scope="col">Rôle</th><th scope="col">Ce qu'il peut faire</th></tr></thead>
@@ -245,6 +297,7 @@ npm start      <span class="c"># http://127.0.0.1:3000</span></pre>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/AUDIT.md">Pendant un audit</a><span>ce que demandent les auditeurs, ce que fournit l'outil, comment préparer l'établissement.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/ACCESSIBILITE.md">Accessibilité</a><span>ce qui est vérifié, ce qui ne l'est pas, modèle de déclaration.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/SECURITY.md">Sécurité</a><span>mesures en place, choix assumés, revue de la version, signalement d'une faille.</span></li>
+        <li><a href="https://github.com/QuentinCazier/Registris/releases">Releases</a><span>archives à télécharger, sommes SHA-256, nomenclature logicielle, notes de version.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/CHANGELOG.md">Journal des versions</a><span>ce qui change d'une version à l'autre.</span></li>
       </ul>
     </div>
