@@ -57,8 +57,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          gh release create "$GITHUB_REF_NAME" --title "Registris $VERSION" --notes-file dist/notes.md \
-            "dist/registris-$VERSION.zip" "dist/registris-$VERSION.tar.gz" "dist/registris-$VERSION.cdx.json" dist/SHA256SUMS
+          FICHIERS=("dist/registris-$VERSION.zip" "dist/registris-$VERSION.tar.gz" "dist/registris-$VERSION.cdx.json" dist/SHA256SUMS)
+          # Release déjà créée (à la main, ou par une exécution précédente après un tag déplacé) :
+          # on la complète au lieu d'échouer, les fichiers du même nom sont remplacés.
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "Registris $VERSION" --notes-file dist/notes.md
+            gh release upload "$GITHUB_REF_NAME" "${FICHIERS[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" --title "Registris $VERSION" --notes-file dist/notes.md "${FICHIERS[@]}"
+          fi
 
   image:
     runs-on: ubuntu-latest
