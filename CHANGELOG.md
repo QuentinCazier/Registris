@@ -31,6 +31,10 @@ Refonte de l'interface et nouveaux modules de gouvernance des accès.
 - Accessibilité : contrôles automatiques sur toutes les pages, contrastes
   corrigés, légendes et portées des tableaux, documentation dédiée.
 - Site de présentation publié sur GitHub Pages depuis le dossier `site/`.
+- Dépendances : multer 2.4.0, qui corrige douze avis de déni de service par
+  requêtes multipart malformées (la version 1.4.5-lts échappait à `npm audit`
+  à cause de son suffixe de préversion) ; tests dédiés aux corps multipart
+  tronqués, trop volumineux ou aux noms de champs hostiles.
 - Corrections : double BOM dans les exports CSV du registre et de la revue,
   autres accès de l'agent listés par son identifiant et non par recherche
   textuelle, création de compte en ligne de commande tracée et refusée en cas de
