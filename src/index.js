@@ -8,4 +8,4 @@ export * as preuves from './preuves.js';
 export * as administration from './administration.js';
 export * as audit from './audit.js';
 export { genererDossierZip, resoudreMatricules } from './export-audit.js';
-export { creerApp } from './serveur.js';
+export { creerApp, ecouter } from './serveur.js';

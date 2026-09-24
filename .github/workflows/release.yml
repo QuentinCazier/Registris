@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  WINSW_VERSION: v2.12.0
+  WINSW_SHA256: 05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Assemblage de l'archive
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          [ "$(node -p "require('./package.json').version")" = "$VERSION" ] || { echo "le tag $GITHUB_REF_NAME ne correspond pas à package.json"; exit 1; }
+          D=dist/registris-$VERSION
+          mkdir -p "$D"
+          cp -r src public docs installation README.md LICENSE CHANGELOG.md SECURITY.md .env.example package.json package-lock.json "$D/"
+          npm ci --omit=dev --no-audit --no-fund
+          cp -r node_modules "$D/node_modules"
+          curl -fsSL -o "$D/installation/windows/registris-service.exe" "https://github.com/winsw/winsw/releases/download/$WINSW_VERSION/WinSW-x64.exe"
+          echo "$WINSW_SHA256  $D/installation/windows/registris-service.exe" | sha256sum -c
+          npm sbom --sbom-format cyclonedx --omit dev > "dist/registris-$VERSION.cdx.json"
+          (cd dist && zip -qr "registris-$VERSION.zip" "registris-$VERSION" && tar -czf "registris-$VERSION.tar.gz" "registris-$VERSION")
+          (cd dist && sha256sum "registris-$VERSION.zip" "registris-$VERSION.tar.gz" "registris-$VERSION.cdx.json" > SHA256SUMS)
+          node -e '
+            const fs = require("fs");
+            const version = process.argv[1];
+            const section = fs.readFileSync("CHANGELOG.md", "utf8").split(/^## /m).find((s) => s.startsWith(version));
+            const corps = section ? section.replace(/^\S+\s*/, "").trim() : "";
+            const pied = [
+              "",
+              "Installation : docs/INSTALLATION.md de l'archive (installateur Windows, script Linux, Docker).",
+              `Image Docker : ghcr.io/${process.argv[2].toLowerCase()}/registris:${version}`,
+              "Sommes SHA-256 : SHA256SUMS. Nomenclature logicielle : registris-" + version + ".cdx.json (CycloneDX).",
+            ].join("\n");
+            fs.writeFileSync("dist/notes.md", `${corps}\n${pied}\n`);
+          ' "$VERSION" "$GITHUB_REPOSITORY_OWNER"
+          ls -la dist
+      - name: Publication de la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          gh release create "$GITHUB_REF_NAME" --title "Registris $VERSION" --notes-file dist/notes.md \
+            "dist/registris-$VERSION.zip" "dist/registris-$VERSION.tar.gz" "dist/registris-$VERSION.cdx.json" dist/SHA256SUMS
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construction et essai de l'image
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/registris
+          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.licenses=EUPL-1.2" .
+          docker run -d --name essai -p 3000:3000 "$IMAGE:$VERSION"
+          for i in $(seq 1 20); do sleep 1; curl -fs http://127.0.0.1:3000/sante && break; done
+          curl -fs http://127.0.0.1:3000/sante | grep -q '"statut":"ok"'
+          docker rm -f essai
+      - name: Publication sur ghcr.io
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/registris
+          echo "${{ github.token }}" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:latest"

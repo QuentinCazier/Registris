@@ -1,0 +1,9 @@
+node_modules
+data
+sauvegardes
+.env
+.git
+.github
+tests
+site
+installation

@@ -1,0 +1,33 @@
+# Registris avec Docker. Copier ce fichier, adapter la section environment, puis :
+#   docker compose up -d
+#   docker compose exec registris node src/cli.js utilisateur admin admin "Administrateur"   (compte de démarrage)
+# La base, les pièces et le secret de session vivent dans le volume registris-donnees.
+services:
+  registris:
+    image: ghcr.io/quentincazier/registris:0.3.0
+    container_name: registris
+    restart: unless-stopped
+    # Derrière un reverse-proxy HTTPS de l'hôte : ne publier que sur l'adresse locale. Au démarrage,
+    # l'avertissement « HOTE=0.0.0.0 sans TLS » est attendu : le conteneur n'est joignable que par l'hôte.
+    # Avec un certificat (TLS_* ci-dessous) : publier sur le réseau, par exemple "443:3000".
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NOM_ETABLISSEMENT: "Centre hospitalier de Ville"
+      # TRUST_PROXY: "true"        # si le reverse-proxy transmet X-Forwarded-For
+      # SECURE_COOKIE: "true"      # derrière HTTPS
+      # TLS_PFX: /data/tls/registris.pfx
+      # TLS_PFX_MOT_DE_PASSE: ...
+      # AUTH_MODE: ldap            # puis les variables LDAP_* de .env.example
+      # SMTP_HOST: smtp.etablissement.local
+      # SMTP_FROM: registris@etablissement.fr
+    volumes:
+      - registris-donnees:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/sante"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  registris-donnees:

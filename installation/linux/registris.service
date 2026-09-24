@@ -1,0 +1,22 @@
+[Unit]
+Description=Registris, registre des habilitations
+After=network.target
+
+[Service]
+User=registris
+Group=registris
+WorkingDirectory=/opt/registris
+Environment=NODE_ENV=production
+Environment=REGISTRIS_CONFIG=/etc/registris/registris.env
+ExecStart=/usr/bin/env node /opt/registris/src/cli.js servir
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/registris
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

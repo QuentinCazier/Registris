@@ -31,6 +31,13 @@ Refonte de l'interface et nouveaux modules de gouvernance des accès.
 - Accessibilité : contrôles automatiques sur toutes les pages, contrastes
   corrigés, légendes et portées des tableaux, documentation dédiée.
 - Site de présentation publié sur GitHub Pages depuis le dossier `site/`.
+- Installation : archive de release avec les dépendances, installateur Windows
+  (service WinSW, certificat auto-signé, compte administrateur, pare-feu),
+  script Linux (systemd durci, minuterie d'entretien quotidienne), image Docker
+  sur ghcr.io, configuration hors du dossier de l'application
+  (`REGISTRIS_CONFIG`), HTTPS direct (`TLS_CERT` et `TLS_KEY`, ou `TLS_PFX`),
+  secret de session généré au premier démarrage, sommes SHA-256 et nomenclature
+  CycloneDX attachées à la release.
 - Dépendances : multer 2.4.0, qui corrige douze avis de déni de service par
   requêtes multipart malformées (la version 1.4.5-lts échappait à `npm audit`
   à cause de son suffixe de préversion) ; tests dédiés aux corps multipart

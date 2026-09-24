@@ -1,0 +1,22 @@
+<service>
+  <id>Registris</id>
+  <name>Registris</name>
+  <description>Registre des habilitations et coffre à preuves d'audit</description>
+  <executable>{{NODE}}</executable>
+  <arguments>"{{DOSSIER}}\src\cli.js" servir</arguments>
+  <workingdirectory>{{DOSSIER}}</workingdirectory>
+  <env name="REGISTRIS_CONFIG" value="{{CONFIG}}"/>
+  <env name="NODE_ENV" value="production"/>
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+  <stoptimeout>20 sec</stoptimeout>
+  <logpath>{{JOURNAUX}}</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+  <serviceaccount>
+    <domain>NT AUTHORITY</domain>
+    <user>LocalService</user>
+  </serviceaccount>
+</service>

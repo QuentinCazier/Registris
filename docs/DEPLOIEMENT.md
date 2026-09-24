@@ -4,6 +4,10 @@ Ce guide s'adresse à la DSI. L'objectif : une application interne, accessible
 en HTTPS depuis les postes de l'établissement, authentifiée par l'Active
 Directory, sauvegardée.
 
+Les installateurs de l'archive de release (Windows, Linux, Docker, voir
+[INSTALLATION.md](INSTALLATION.md)) font les étapes 1, 2, 3 et 6 en une fois.
+Ce guide détaille chaque réglage, pour les adapter ou les faire à la main.
+
 ## 1. Où l'installer
 
 - Une petite machine virtuelle Linux ou Windows suffit (1 vCPU, 1 Go de RAM,
@@ -44,13 +48,18 @@ La marque de l'établissement se pose en déposant `marque.svg` (barre haute) et
 dérivées et la couleur du texte posé dessus sont calculées pour rester lisibles.
 Voir `public/README.md`.
 
-Génération du secret :
+Le fichier lu est le `.env` à la racine de l'application, ou celui que désigne
+la variable d'environnement `REGISTRIS_CONFIG` (les installateurs le placent
+dans `/etc/registris` ou `C:\ProgramData\Registris`, hors du dossier de
+l'application, pour qu'une mise à jour ne l'écrase pas).
+
+`SESSION_SECRET` peut rester vide : un secret est alors généré au premier
+démarrage et conservé dans `session.secret`, à côté de la base, avec des droits
+restreints. Pour le fixer vous-même :
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
-
-En production, l'application **refuse de démarrer** sans `SESSION_SECRET`.
 
 ## 2 bis. Remplir le catalogue
 
@@ -93,6 +102,16 @@ server {
 Sous Windows, IIS avec Application Request Routing joue le même rôle. Le point
 important : les mots de passe Active Directory transitent au moment de la
 connexion, donc **jamais en HTTP clair** au-delà de la machine elle-même.
+
+### HTTPS direct, sans reverse-proxy
+
+Pour un pilote ou un serveur dédié, l'application peut porter elle-même le
+certificat : `TLS_CERT` et `TLS_KEY` (PEM), ou `TLS_PFX` et
+`TLS_PFX_MOT_DE_PASSE` (export d'une PKI Windows, algorithme `AES256_SHA256`).
+`SECURE_COOKIE` passe alors à `true` de lui-même, et `HOTE=0.0.0.0` expose le
+service sur le réseau. Sans TLS ni reverse-proxy, `HOTE` doit rester
+`127.0.0.1` : le démarrage l'avertit. Les installateurs génèrent un certificat
+auto-signé, à remplacer par celui de votre PKI.
 
 ## 4. Active Directory
 
@@ -196,7 +215,9 @@ prévenus à chaque changement de statut si leur courriel est connu.
 
 ## 6. Service système
 
-Exemple d'unité systemd :
+Les installateurs de l'archive créent le service (WinSW sous Windows, unité et
+minuterie systemd sous Linux, fichiers dans `installation/`). À la main,
+exemple d'unité systemd :
 
 ```ini
 [Unit]

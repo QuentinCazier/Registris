@@ -187,7 +187,7 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
       <table>
         <caption>Caractéristiques techniques de Registris</caption>
         <tbody>
-          <tr><th scope="row">Prérequis</th><td>Node.js 22 ou plus récent, et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer.</td></tr>
+          <tr><th scope="row">Prérequis</th><td>Node.js 22 ou plus récent, et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer. L'archive de release contient les dépendances, sans accès à internet.</td></tr>
           <tr><th scope="row">Authentification</th><td>Active Directory par LDAPS, rôles déduits des groupes, groupes imbriqués en option, compte local de secours accepté seulement quand l'annuaire est injoignable. Ou comptes locaux.</td></tr>
           <tr><th scope="row">Données</th><td>Un fichier SQLite et un dossier de pièces sur le disque local. Sauvegarde et restauration en une commande, avec manifeste d'empreintes. Aucune donnée patient.</td></tr>
           <tr><th scope="row">Exposition</th><td>HTTP local derrière le reverse-proxy HTTPS de l'établissement. Aucun appel sortant : polices, scripts et images sont servis par l'application.</td></tr>
@@ -210,6 +210,7 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
 
   <section id="demarrer" aria-labelledby="t-demarrer">
     <h2 id="t-demarrer">Démarrer en cinq minutes</h2>
+    <p class="plomb" style="font-size:15px">Sur un serveur, la <a href="https://github.com/QuentinCazier/Registris/releases">dernière release</a> fournit une archive avec les dépendances, un installateur Windows (service, HTTPS, compte administrateur), un script Linux et une image Docker : voir le <a href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md">guide d'installation</a>. Pour essayer sur un poste :</p>
     <div class="deux">
       <div>
         <pre><span class="c"># Node.js 22 ou plus récent</span>
@@ -239,6 +240,7 @@ npm start      <span class="c"># http://127.0.0.1:3000</span></pre>
     <div class="bloc">
       <ul class="docs">
         <li><a href="https://github.com/QuentinCazier/Registris#readme">README</a><span>ce que fait l'outil, ce qu'il ne fait pas, architecture, sécurité.</span></li>
+        <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md">Installation</a><span>archive de release, installateur Windows, script Linux, Docker, mises à jour.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/DEPLOIEMENT.md">Déploiement</a><span>reverse-proxy HTTPS, Active Directory, certificat, compte de secours, SMTP, sauvegardes, tâches à planifier.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/AUDIT.md">Pendant un audit</a><span>ce que demandent les auditeurs, ce que fournit l'outil, comment préparer l'établissement.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/ACCESSIBILITE.md">Accessibilité</a><span>ce qui est vérifié, ce qui ne l'est pas, modèle de déclaration.</span></li>

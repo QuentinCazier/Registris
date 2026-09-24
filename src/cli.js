@@ -14,7 +14,7 @@ import { auditerCoffre } from './preuves.js';
 import { sauvegarder, inspecter, restaurer } from './sauvegarde.js';
 import { relancer } from './relances.js';
 import { notifier } from './mailer.js';
-import { creerApp } from './serveur.js';
+import { creerApp, ecouter } from './serveur.js';
 import { chargerDemo } from './demo.js';
 
 const USAGE = `Usage : registris <commande>
@@ -214,10 +214,10 @@ function servir() {
   }
   for (const a of avertissements) console.warn(`Attention : ${a}`);
   initialiserSchema();
-  const app = creerApp();
-  app.listen(config.port, config.hote, () => {
-    console.log(`${config.nom} en écoute sur http://${config.hote}:${config.port}`);
-    console.log(`Authentification : ${config.authMode} · base : ${config.dbPath}`);
+  const serveur = ecouter(creerApp());
+  serveur.on('listening', () => {
+    console.log(`${config.nom} en écoute sur ${serveur.protocole}://${config.hote}:${config.port}`);
+    console.log(`Authentification : ${config.authMode} · base : ${config.dbPath} · configuration : ${config.fichierConfig}`);
   });
 }
 

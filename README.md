@@ -130,7 +130,15 @@ La revue périodique : chaque référent statue sur ses applications, et le rapp
   (matricule, nom, courriel professionnel), à inscrire au registre des
   traitements de l'établissement.
 
-## Démarrage en cinq minutes
+## Installer
+
+Chaque [release](https://github.com/QuentinCazier/Registris/releases) fournit
+une archive avec les dépendances incluses, un installateur Windows (service,
+HTTPS, compte administrateur, pare-feu), un script Linux (systemd, entretien
+quotidien) et une image Docker. Le serveur n'a besoin que de Node.js, sans
+accès à internet. Tout est décrit dans [docs/INSTALLATION.md](docs/INSTALLATION.md).
+
+## Essayer en cinq minutes
 
 Prérequis : [Node.js](https://nodejs.org) 22 ou plus récent. Aucune base de
 données à installer (SQLite intégré), aucun compilateur.
@@ -152,7 +160,8 @@ Comptes de démonstration (mot de passe commun `demo-registris`) :
 | `controleur` | Contrôleur | lire le registre, le journal, produire le dossier de preuves |
 | `agent` | Utilisateur | déposer des demandes, joindre des preuves, suivre les siennes |
 
-Pour une vraie installation, voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)
+Pour une vraie installation, voir [docs/INSTALLATION.md](docs/INSTALLATION.md)
+(installateurs) et [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)
 (reverse-proxy HTTPS, Active Directory, SMTP, sauvegardes),
 [docs/AUDIT.md](docs/AUDIT.md) (comment s'en servir pendant un audit) et
 [docs/ACCESSIBILITE.md](docs/ACCESSIBILITE.md) (ce qui est vérifié, ce qui ne
@@ -232,6 +241,9 @@ src/
   ui.js              gabarit et composants HTML
   cli.js             ligne de commande
 tests/               tests (node:test), dont des tests HTTP de bout en bout
+installation/        installateur Windows, script Linux, exemple Docker Compose
+site/                page de présentation publiée sur GitHub Pages
+Dockerfile           image publiée sur ghcr.io à chaque release
 ```
 
 `serveur.js` ne contient plus de route : il pose la sécurité commune puis monte

@@ -1,0 +1,20 @@
+[Unit]
+Description=Registris, entretien quotidien : sauvegarde, ancrage, relances, vérification
+After=registris.service
+
+[Service]
+Type=oneshot
+User=registris
+Group=registris
+WorkingDirectory=/opt/registris
+Environment=NODE_ENV=production
+Environment=REGISTRIS_CONFIG=/etc/registris/registris.env
+ExecStart=/usr/bin/env node /opt/registris/src/cli.js sauvegarder
+ExecStart=/usr/bin/env node /opt/registris/src/cli.js ancrer
+ExecStart=/usr/bin/env node /opt/registris/src/cli.js relancer
+ExecStart=/usr/bin/env node /opt/registris/src/cli.js verifier
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/registris

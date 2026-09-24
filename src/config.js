@@ -1,5 +1,6 @@
 // Configuration : environnement et fichier .env, lu sans dépendance.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,7 @@ const bool = (v, defaut = false) =>
 // Les guillemets qui entourent une valeur sont retirés, comme le font les autres lecteurs de .env.
 export function analyserDotEnv(texte) {
   const valeurs = {};
-  for (const ligne of String(texte ?? '').split(/\r?\n/)) {
+  for (const ligne of String(texte ?? '').replace(/^﻿/, '').split(/\r?\n/)) {
     const trim = ligne.trim();
     if (!trim || trim.startsWith('#')) continue;
     const egal = trim.indexOf('=');
@@ -23,33 +24,45 @@ export function analyserDotEnv(texte) {
   return valeurs;
 }
 
-function chargerDotEnv(racine) {
-  const chemin = path.join(racine, '.env');
+function chargerDotEnv(chemin) {
   if (!fs.existsSync(chemin)) return;
   for (const [cle, valeur] of Object.entries(analyserDotEnv(fs.readFileSync(chemin, 'utf8')))) {
     if (!(cle in process.env)) process.env[cle] = valeur;
   }
 }
 
-chargerDotEnv(RACINE);
+// REGISTRIS_CONFIG désigne le fichier de configuration ; sinon le .env à la racine du dépôt.
+const FICHIER_CONFIG = process.env.REGISTRIS_CONFIG ? path.resolve(process.env.REGISTRIS_CONFIG) : path.join(RACINE, '.env');
+chargerDotEnv(FICHIER_CONFIG);
 
 const resoudre = (p) => (path.isAbsolute(p) ? p : path.join(RACINE, p));
 
 export const SECRET_PAR_DEFAUT = 'dev-secret-non-securise';
+
+// HTTPS servi directement : certificat et clé PEM, ou un PFX (PKI Windows).
+const tls = {
+  cert: process.env.TLS_CERT ? resoudre(process.env.TLS_CERT) : '',
+  key: process.env.TLS_KEY ? resoudre(process.env.TLS_KEY) : '',
+  pfx: process.env.TLS_PFX ? resoudre(process.env.TLS_PFX) : '',
+  passphrase: process.env.TLS_PFX_MOT_DE_PASSE ?? '',
+};
+tls.actif = Boolean((tls.cert && tls.key) || tls.pfx);
 
 const COULEUR_PAR_DEFAUT = '#12558f';
 const couleurValide = (v) => (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(v ?? '')) ? String(v) : null);
 
 export const config = {
   nom: 'Registris',
+  fichierConfig: FICHIER_CONFIG,
   etablissement: process.env.NOM_ETABLISSEMENT ?? '',
   // ui.js en dérive les nuances et la couleur de texte.
   couleurAccent: couleurValide(process.env.COULEUR_ACCENT) ?? COULEUR_PAR_DEFAUT,
 
   port: Number(process.env.PORT ?? 3000),
   hote: process.env.HOTE ?? '127.0.0.1',
-  sessionSecret: process.env.SESSION_SECRET ?? SECRET_PAR_DEFAUT,
-  secureCookie: bool(process.env.SECURE_COOKIE, false),
+  sessionSecret: process.env.SESSION_SECRET || SECRET_PAR_DEFAUT,
+  secureCookie: bool(process.env.SECURE_COOKIE, tls.actif),
+  tls,
   trustProxy: bool(process.env.TRUST_PROXY, false),
 
   dbPath: resoudre(process.env.DB_PATH ?? './data/registris.db'),
@@ -103,16 +116,56 @@ export const config = {
   },
 };
 
+const cheminSecret = () => path.join(path.dirname(config.dbPath), 'session.secret');
+
+// Sans SESSION_SECRET, un secret est généré au premier démarrage et conservé à côté de la base.
+export function assurerSecretSession() {
+  if (config.sessionSecret !== SECRET_PAR_DEFAUT) return config.sessionSecret;
+  const chemin = cheminSecret();
+  try {
+    const lu = fs.readFileSync(chemin, 'utf8').trim();
+    if (lu.length >= 32) {
+      config.sessionSecret = lu;
+      return lu;
+    }
+  } catch {
+    /* pas encore de secret */
+  }
+  const neuf = crypto.randomBytes(48).toString('hex');
+  fs.mkdirSync(path.dirname(chemin), { recursive: true });
+  fs.writeFileSync(chemin, `${neuf}\n`, { mode: 0o600 });
+  config.sessionSecret = neuf;
+  return neuf;
+}
+
+export function optionsTls() {
+  if (!config.tls.actif) return null;
+  if (config.tls.pfx) return { pfx: fs.readFileSync(config.tls.pfx), passphrase: config.tls.passphrase || undefined };
+  return { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key) };
+}
+
 // Renvoie les avertissements ; lève si un réglage rend le déploiement dangereux.
 export function verifierPourProduction({ production = process.env.NODE_ENV === 'production' } = {}) {
   const avertissements = [];
   if (config.sessionSecret === SECRET_PAR_DEFAUT) {
-    const msg = 'SESSION_SECRET non défini : générez une valeur longue et aléatoire dans .env.';
-    if (production) throw new Error(msg);
-    avertissements.push(msg);
+    try {
+      assurerSecretSession();
+      avertissements.push(`SESSION_SECRET non défini : secret généré et conservé dans ${cheminSecret()}.`);
+    } catch (e) {
+      const msg = `SESSION_SECRET non défini et impossible d'en conserver un (${e.message}) : définissez-le dans la configuration.`;
+      if (production) throw new Error(msg);
+      avertissements.push(msg);
+    }
   }
-  if (!config.secureCookie) {
-    avertissements.push('SECURE_COOKIE=false : à passer à true derrière un reverse-proxy HTTPS.');
+  if (config.tls.actif) {
+    for (const [nom, chemin] of [['TLS_CERT', config.tls.cert], ['TLS_KEY', config.tls.key], ['TLS_PFX', config.tls.pfx]]) {
+      if (chemin && !fs.existsSync(chemin)) throw new Error(`${nom} introuvable : ${chemin}`);
+    }
+  } else {
+    if (!config.secureCookie) avertissements.push('SECURE_COOKIE=false : à passer à true derrière un reverse-proxy HTTPS.');
+    if (!['127.0.0.1', 'localhost', '::1'].includes(config.hote)) {
+      avertissements.push(`HOTE=${config.hote} sans TLS : les mots de passe transiteraient en clair sur le réseau. Mettez un reverse-proxy HTTPS devant, ou renseignez TLS_CERT et TLS_KEY (ou TLS_PFX).`);
+    }
   }
   if (config.authMode === 'ldap') {
     const { ldap } = config;

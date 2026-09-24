@@ -3,13 +3,15 @@
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
 import express from 'express';
 import session from 'express-session';
 
-import { config } from './config.js';
+import { config, optionsTls } from './config.js';
 import { exigerAuth, peut } from './roles.js';
 import { statistiques, compterHabilitations } from './habilitations.js';
 import { resteAStatuer, enCours } from './revues.js';
@@ -163,4 +165,12 @@ export function creerApp() {
   });
 
   return app;
+}
+
+// HTTPS direct si un certificat est configuré, sinon HTTP derrière un reverse-proxy.
+export function ecouter(app, { port = config.port, hote = config.hote } = {}) {
+  const tls = optionsTls();
+  const serveur = tls ? https.createServer(tls, app) : http.createServer(app);
+  serveur.protocole = tls ? 'https' : 'http';
+  return serveur.listen(port, hote);
 }

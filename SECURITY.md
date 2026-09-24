@@ -21,8 +21,10 @@ mainteneurs, mais un ticket ici pour demander la mise à jour est bienvenu).
 
 ## Mesures en place
 
-- Session : cookie `httpOnly`, `sameSite=lax`, `secure` derrière HTTPS, secret
-  obligatoire en production, régénération de session à la connexion. Les
+- Session : cookie `httpOnly`, `sameSite=lax`, `secure` derrière HTTPS ou avec
+  le TLS direct, secret fourni par `SESSION_SECRET` ou généré au premier
+  démarrage et conservé dans `session.secret` avec des droits restreints,
+  régénération de session à la connexion. Les
   sessions sont en base SQLite, purgées à l'expiration : rien ne s'accumule en
   mémoire et un redémarrage ne déconnecte personne.
 - CSRF : jeton par session injecté dans chaque formulaire `POST` et vérifié,
@@ -50,6 +52,10 @@ mainteneurs, mais un ticket ici pour demander la mise à jour est bienvenu).
   vérification à la demande.
 - Sauvegarde : archive avec manifeste d'empreintes, restauration refusée si un
   fichier ne correspond pas.
+- Distribution : archive de release construite par l'intégration continue à
+  partir du tag, avec sommes SHA-256 et nomenclature logicielle CycloneDX ;
+  lanceur de service Windows (WinSW 2.12.0) téléchargé à la construction et
+  vérifié par empreinte ; image Docker exécutée sans privilège.
 - Exports CSV : toute cellule commençant par un signe de calcul (`=`, `+`, `-`,
   `@`, tabulation, retour chariot) est neutralisée par une apostrophe de tête.
   Les libellés d'applications, les profils et les motifs sont du texte libre, et
