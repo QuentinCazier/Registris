@@ -52,10 +52,13 @@ mainteneurs, mais un ticket ici pour demander la mise à jour est bienvenu).
   vérification à la demande.
 - Sauvegarde : archive avec manifeste d'empreintes, restauration refusée si un
   fichier ne correspond pas.
-- Distribution : archive de release construite par l'intégration continue à
-  partir du tag, avec sommes SHA-256 et nomenclature logicielle CycloneDX ;
-  lanceur de service Windows (WinSW 2.12.0) téléchargé à la construction et
-  vérifié par empreinte ; image Docker exécutée sans privilège.
+- Distribution : archives et installateur Windows construits par l'intégration
+  continue à partir du tag, avec sommes SHA-256 et nomenclature logicielle
+  CycloneDX ; Node.js pour Windows téléchargé depuis nodejs.org et vérifié par
+  les sommes publiées, lanceur de service Windows (WinSW 2.12.0) vérifié par
+  empreinte ; l'installateur n'est pas signé par un certificat d'éditeur
+  (SmartScreen avertit, la somme SHA-256 fait foi) ; image Docker exécutée sans
+  privilège.
 - Exports CSV : toute cellule commençant par un signe de calcul (`=`, `+`, `-`,
   `@`, tabulation, retour chariot) est neutralisée par une apostrophe de tête.
   Les libellés d'applications, les profils et les motifs sont du texte libre, et

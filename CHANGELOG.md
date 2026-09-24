@@ -1,5 +1,17 @@
 # Journal des versions
 
+## 0.3.1
+
+- Installateur Windows complet : un assistant (`registris-x.y.z-installateur.exe`)
+  qui embarque Node.js et le service, demande le nom de l'établissement, le
+  port, le compte administrateur et le certificat, puis installe et démarre le
+  service. Désinstallation depuis « Programmes et fonctionnalités ». Mise à jour
+  en relançant l'installateur. Node.js est aussi livré dans l'archive Windows
+  portable : plus aucun prérequis sur le serveur.
+- Chaque installateur est construit et essayé en intégration continue sur un
+  serveur Windows : installation silencieuse, service, HTTPS, compte, pare-feu,
+  mise à jour, désinstallation.
+
 ## 0.3.0
 
 Refonte de l'interface et nouveaux modules de gouvernance des accès.

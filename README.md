@@ -133,10 +133,10 @@ La revue périodique : chaque référent statue sur ses applications, et le rapp
 ## Installer
 
 Chaque [release](https://github.com/QuentinCazier/Registris/releases) fournit
-une archive avec les dépendances incluses, un installateur Windows (service,
-HTTPS, compte administrateur, pare-feu), un script Linux (systemd, entretien
-quotidien) et une image Docker. Le serveur n'a besoin que de Node.js, sans
-accès à internet. Tout est décrit dans [docs/INSTALLATION.md](docs/INSTALLATION.md).
+un installateur Windows complet (assistant, Node.js et service compris, rien à
+installer avant), une archive Linux avec les dépendances et un script systemd,
+et une image Docker. Le serveur n'a pas besoin d'accès à internet. Tout est
+décrit dans [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ## Essayer en cinq minutes
 
@@ -241,7 +241,7 @@ src/
   ui.js              gabarit et composants HTML
   cli.js             ligne de commande
 tests/               tests (node:test), dont des tests HTTP de bout en bout
-installation/        installateur Windows, script Linux, exemple Docker Compose
+installation/        installateur Windows (assistant et script), script Linux, exemple Docker Compose
 site/                page de présentation publiée sur GitHub Pages
 Dockerfile           image publiée sur ghcr.io à chaque release
 ```

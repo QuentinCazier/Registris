@@ -8,8 +8,8 @@ Le serveur n'a besoin ni d'accès à internet ni de `npm`.
 
 | Serveur | Voie | Prérequis |
 |---|---|---|
-| Windows Server | `installation\windows\installer.cmd` | Node.js 22 ou plus récent (installeur MSI de nodejs.org) |
-| Linux avec systemd | `sudo installation/linux/installer.sh` | Node.js 22 ou plus récent, `openssl` pour le certificat auto-signé |
+| Windows Server | `registris-x.y.z-installateur.exe` (assistant) ou l'archive `-windows.zip` avec `installation\windows\installer.cmd` | aucun : Node.js est embarqué |
+| Linux avec systemd | `sudo installation/linux/installer.sh` depuis le `.tar.gz` | Node.js 22 ou plus récent, `openssl` pour le certificat auto-signé |
 | Docker ou Proxmox | `installation/docker/docker-compose.yml` | Docker avec Compose |
 
 Pour essayer sur un poste sans rien installer d'autre que Node.js, le dépôt
@@ -17,10 +17,12 @@ suffit : `npm install`, `npm run demo`, `npm start`.
 
 ## Vérifier l'archive
 
-Le fichier `SHA256SUMS` de la release donne l'empreinte de chaque fichier.
+Les fichiers `SHA256SUMS` (archive Linux, nomenclature) et
+`SHA256SUMS-windows.txt` (installateur et archive Windows) de la release donnent
+l'empreinte de chaque fichier.
 
 ```powershell
-certutil -hashfile registris-0.3.0.zip SHA256        # Windows
+certutil -hashfile registris-0.3.1-installateur.exe SHA256        # Windows
 ```
 
 ```bash
@@ -29,13 +31,45 @@ sha256sum -c SHA256SUMS                               # Linux
 
 ## Windows Server
 
-1. Installez Node.js LTS (22 ou plus récent) avec l'installeur MSI de
-   <https://nodejs.org>, options par défaut.
-2. Décompressez l'archive dans un dossier temporaire, ouvrez
-   `installation\windows` et lancez `installer.cmd` (clic droit, exécuter en
-   tant qu'administrateur). Il demande le nom de l'établissement, le port,
-   l'identifiant et le mot de passe de l'administrateur.
-3. À la fin, l'adresse de l'application s'affiche. L'installateur a :
+### L'assistant d'installation
+
+Téléchargez `registris-x.y.z-installateur.exe`, vérifiez sa somme SHA-256, puis
+lancez-le en administrateur. Il demande le dossier, le nom de l'établissement,
+le port, l'identifiant et le mot de passe de l'administrateur, et le mode HTTPS
+(certificat auto-signé généré sur place, fichier PFX de votre PKI, ou pas de
+HTTPS derrière un reverse-proxy). Il installe ensuite l'application, Node.js,
+le service Windows et ouvre le port, puis propose d'ouvrir Registris dans le
+navigateur.
+
+L'installateur n'est pas signé par un certificat d'éditeur : Windows SmartScreen
+affiche « Windows a protégé votre ordinateur » au premier lancement. Cliquez sur
+« Informations complémentaires » puis « Exécuter quand même », après avoir
+comparé la somme SHA-256 à celle publiée avec la release. Le programme figure
+ensuite dans « Programmes et fonctionnalités », d'où il se désinstalle (les
+données sont conservées, sauf réponse contraire à la question posée).
+
+Installation sans assistant, pour un déploiement scripté, depuis une console
+PowerShell déjà ouverte en administrateur (la variable d'environnement ne
+survit pas à une élévation UAC) :
+
+```powershell
+$env:REGISTRIS_MOT_DE_PASSE = '...'
+.\registris-0.3.1-installateur.exe /VERYSILENT /Etablissement="CH de Ville" /Port=443 /Admin=admin /Tls=auto
+```
+
+Options : `/Tls=pfx /Pfx=C:\pki\registris.pfx /PfxMotDePasse=...`, ou `/Tls=aucun`.
+Mise à jour : relancer l'installateur de la nouvelle version, la configuration
+et les données sont conservées. Chaque installateur publié a été installé,
+vérifié, mis à jour et désinstallé sur un serveur Windows par l'intégration
+continue avant sa publication.
+
+### L'archive portable
+
+`registris-x.y.z-windows.zip` contient la même chose, Node.js compris, sans
+assistant : décompressez, ouvrez `installation\windows` et lancez
+`installer.cmd` (clic droit, exécuter en tant qu'administrateur). Il pose les
+mêmes questions dans la console. À la fin, l'adresse de l'application
+s'affiche. L'installateur a :
    - copié l'application dans `C:\Program Files\Registris` ;
    - créé les données dans `C:\ProgramData\Registris` (base, pièces, ancrages,
      sauvegardes, journaux) et la configuration `registris.env` au même
@@ -49,7 +83,7 @@ sha256sum -c SHA256SUMS                               # Linux
      construction de la release ;
    - ouvert le port dans le pare-feu, profils Domaine et Privé.
 
-Variantes, en PowerShell depuis `installation\windows` :
+Variantes du script, en PowerShell depuis `installation\windows` :
 
 ```powershell
 .\installer.ps1 -Etablissement "CH de Ville" -Port 443 -Tls pfx -Certificat C:\pki\registris.pfx -MotDePassePfx '...'
@@ -59,12 +93,16 @@ Variantes, en PowerShell depuis `installation\windows` :
 
 Un PFX exporté depuis une PKI Windows doit l'être avec l'algorithme
 `AES256_SHA256` (option d'`Export-PfxCertificate`) : Node refuse les exports
-chiffrés en RC2. À défaut, convertissez en PEM et utilisez `-Tls pem`.
+chiffrés en RC2. À défaut, convertissez en PEM et utilisez `-Tls pem`. Le
+certificat auto-signé demande Windows Server 2022 ou plus récent (même export
+AES256) : sur un serveur plus ancien, fournissez un PFX de la PKI ou choisissez
+le mode sans HTTPS derrière un reverse-proxy.
 
 Mise à jour : décompressez la nouvelle archive et relancez `installer.cmd`. Il
 arrête le service, remplace l'application, conserve la configuration et les
 données, redémarre. Le schéma de la base migre seul au démarrage. Faites une
-sauvegarde avant (`registris sauvegarder`).
+sauvegarde avant (`registris sauvegarder`). Node.js suit les releases de
+Registris : la mise à jour de l'un met à jour l'autre.
 
 Désinstallation : `installation\windows\desinstaller.ps1` retire le service, la
 règle de pare-feu et l'application ; les données restent, sauf avec
@@ -78,8 +116,8 @@ jour ouvré. Voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 ## Linux avec systemd
 
 ```bash
-tar -xzf registris-0.3.0.tar.gz
-cd registris-0.3.0
+tar -xzf registris-0.3.1.tar.gz
+cd registris-0.3.1
 sudo installation/linux/installer.sh --etablissement "CH de Ville" --port 443
 ```
 
