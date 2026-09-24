@@ -45,7 +45,7 @@ jobs:
             const corps = section ? section.replace(/^\S+\s*/, "").trim() : "";
             const pied = [
               "",
-              "Installation : docs/INSTALLATION.md de l'archive (installateur Windows, script Linux, Docker).",
+              "Installation : docs/INSTALLATION.md de l’archive (installateur Windows, script Linux, Docker).",
               `Image Docker : ghcr.io/${process.argv[2].toLowerCase()}/registris:${version}`,
               "Sommes SHA-256 : SHA256SUMS. Nomenclature logicielle : registris-" + version + ".cdx.json (CycloneDX).",
             ].join("\n");
