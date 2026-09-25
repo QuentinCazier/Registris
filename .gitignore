@@ -14,3 +14,8 @@ coverage/
 # Archives de sauvegarde (contiennent la base et les pièces : jamais versionnées).
 sauvegardes/
 *.zip
+
+# Sorties de construction des installateurs.
+dist/
+installation/windows/registris-service.exe
+installation/windows/configurer.log

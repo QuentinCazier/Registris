@@ -198,12 +198,12 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
       <table>
         <caption>Caractéristiques techniques de Registris</caption>
         <tbody>
-          <tr><th scope="row">Prérequis</th><td>Node.js 22 ou plus récent, et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer. L'archive de release contient les dépendances : le serveur n'a besoin ni d'internet ni de <code>npm</code>. Ou Docker, sans Node.js.</td></tr>
+          <tr><th scope="row">Prérequis</th><td>Aucun sous Windows : l'installateur embarque Node.js. Sous Linux, Node.js 22 ou plus récent et rien d'autre : SQLite est intégré, aucun compilateur, aucune base de données à installer. Les archives contiennent les dépendances : le serveur n'a besoin ni d'internet ni de <code>npm</code>. Ou Docker.</td></tr>
           <tr><th scope="row">Authentification</th><td>Active Directory par LDAPS, rôles déduits des groupes, groupes imbriqués en option, compte local de secours accepté seulement quand l'annuaire est injoignable. Ou comptes locaux.</td></tr>
           <tr><th scope="row">Données</th><td>Un fichier SQLite et un dossier de pièces sur le disque local. Sauvegarde et restauration en une commande, avec manifeste d'empreintes. Aucune donnée patient.</td></tr>
           <tr><th scope="row">Exposition</th><td>HTTPS direct avec un certificat PEM ou PFX de votre PKI (auto-signé à défaut), ou HTTP local derrière le reverse-proxy de l'établissement. Aucun appel sortant : polices, scripts et images sont servis par l'application.</td></tr>
           <tr><th scope="row">Exploitation</th><td>Service Windows ou service systemd durci, configuration hors du dossier de l'application pour des mises à jour sans retouche, sonde <code>/sante</code> pour la supervision, sauvegarde et ancrage planifiés.</td></tr>
-          <tr><th scope="row">Livraison</th><td>Chaque release publie l'archive, ses sommes SHA-256, une nomenclature logicielle CycloneDX et l'image Docker, construites et testées par l'intégration continue.</td></tr>
+          <tr><th scope="row">Livraison</th><td>Chaque release publie l'installateur Windows, les archives, leurs sommes SHA-256, une nomenclature logicielle CycloneDX et l'image Docker, construits et testés par l'intégration continue, installation Windows comprise.</td></tr>
           <tr><th scope="row">Notifications</th><td>Relais SMTP interne, facultatif. Relances des demandes en attente par une tâche planifiée.</td></tr>
           <tr><th scope="row">Sécurité</th><td>Politique de sécurité de contenu avec nonce, jeton anti-CSRF, sessions en base, blocage après cinq échecs, pièces validées par signature binaire, exports CSV neutralisés, journal chaîné.</td></tr>
           <tr><th scope="row">Accessibilité</th><td>Contrôles automatiques sur toutes les pages à chaque exécution des tests, documentation de ce qui est vérifié et de ce qui ne l'est pas, modèle de déclaration à compléter par l'établissement.</td></tr>
@@ -223,14 +223,14 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
 
   <section id="installer" aria-labelledby="t-installer">
     <h2 id="t-installer">Installer sur un serveur</h2>
-    <p class="plomb" style="font-size:15px">Tout part de la <a href="https://github.com/QuentinCazier/Registris/releases/latest">dernière release</a> : une archive <code>.zip</code> ou <code>.tar.gz</code> qui contient l'application avec ses dépendances, les installateurs et la documentation. Choisissez la voie qui correspond à votre serveur.</p>
+    <p class="plomb" style="font-size:15px">Tout part de la <a href="https://github.com/QuentinCazier/Registris/releases/latest">dernière release</a> : un installateur Windows, une archive <code>.tar.gz</code> pour Linux et une image Docker, chacun avec l'application, ses dépendances et la documentation. Choisissez la voie qui correspond à votre serveur.</p>
     <div class="trois">
       <div class="bloc voie">
-        <div class="bloc-tete"><h3 style="margin:0;font-size:14px">Windows Server</h3><span class="c">installer.cmd</span></div>
+        <div class="bloc-tete"><h3 style="margin:0;font-size:14px">Windows Server</h3><span class="c">installateur.exe</span></div>
         <div class="corps">
-          <p>Node.js 22 installé, archive décompressée, un clic droit « exécuter en tant qu'administrateur ». L'installateur crée le service Windows, le certificat, le compte administrateur et la règle de pare-feu.</p>
-          <pre>installation\windows\installer.cmd</pre>
-          <p>Relancé sur une nouvelle archive, il met à jour sans toucher à la configuration ni aux données.</p>
+          <p>Rien à installer avant : l'assistant embarque Node.js, demande le nom de l'établissement, le port, le compte administrateur et le certificat, puis crée le service Windows et la règle de pare-feu.</p>
+          <pre>registris-x.y.z-installateur.exe</pre>
+          <p>Relancé avec une nouvelle version, il met à jour sans toucher à la configuration ni aux données. Désinstallation depuis « Programmes et fonctionnalités ».</p>
           <a class="lien" href="https://github.com/QuentinCazier/Registris/blob/main/docs/INSTALLATION.md#windows-server">Guide Windows</a>
         </div>
       </div>

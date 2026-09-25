@@ -1,6 +1,6 @@
 {
   "name": "registris",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Registre des habilitations et coffre à preuves d'audit pour les établissements publics de santé : qui a obtenu quel accès, sur quel logiciel, sur quelles UF, quand, sur la base de quelle demande, prouvé par quelle pièce.",
   "keywords": [
     "habilitations",

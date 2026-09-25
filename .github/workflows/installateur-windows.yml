@@ -1,0 +1,158 @@
+name: Installateur Windows
+
+on:
+  workflow_call:
+    inputs:
+      publier:
+        description: Joindre les fichiers à la release du tag courant
+        type: boolean
+        default: false
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'installation/windows/**'
+      - '.github/workflows/installateur-windows.yml'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: write
+
+env:
+  WINSW_VERSION: v2.12.0
+  WINSW_SHA256: 05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da
+  INNO_VERSION: 6.7.3
+  INNO_SHA256: 9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732
+
+jobs:
+  construire:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Assemblage de l'application
+        run: |
+          $version = node -p "require('./package.json').version"
+          "VERSION=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          $d = "dist\registris-$version"
+          New-Item -ItemType Directory -Force $d | Out-Null
+          foreach ($e in 'src', 'public', 'docs', 'installation', 'node_modules') { Copy-Item -Recurse $e "$d\$e" }
+          foreach ($f in 'README.md', 'LICENSE', 'CHANGELOG.md', 'SECURITY.md', '.env.example', 'package.json', 'package-lock.json') { Copy-Item $f "$d\$f" }
+          Remove-Item -Recurse -Force "$d\installation\docker", "$d\installation\linux"
+
+      - name: Node.js portable, vérifié par les sommes de nodejs.org
+        run: |
+          $index = Invoke-RestMethod https://nodejs.org/dist/index.json
+          $v = ($index | Where-Object { $_.version -like 'v24.*' -and $_.lts } | Select-Object -First 1).version
+          Invoke-WebRequest "https://nodejs.org/dist/$v/node-$v-win-x64.zip" -OutFile node.zip
+          $sommes = (Invoke-WebRequest "https://nodejs.org/dist/$v/SHASUMS256.txt").Content -split "`n"
+          $attendue = (($sommes | Where-Object { $_ -match "node-$v-win-x64\.zip" }) -split '\s+')[0]
+          $reelle = (Get-FileHash node.zip -Algorithm SHA256).Hash.ToLower()
+          if ($reelle -ne $attendue) { throw "Somme SHA-256 de node.zip inattendue ($reelle au lieu de $attendue)" }
+          Expand-Archive node.zip -DestinationPath node-extrait
+          $n = "dist\registris-$env:VERSION\node"
+          New-Item -ItemType Directory -Force $n | Out-Null
+          Copy-Item "node-extrait\node-$v-win-x64\node.exe", "node-extrait\node-$v-win-x64\LICENSE" $n\
+          Set-Content $n\VERSION.txt $v
+          "NODE_WIN=$v" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          & $n\node.exe --version
+
+      - name: Lanceur de service WinSW, vérifié par empreinte
+        run: |
+          $cible = "dist\registris-$env:VERSION\installation\windows\registris-service.exe"
+          Invoke-WebRequest "https://github.com/winsw/winsw/releases/download/$env:WINSW_VERSION/WinSW-x64.exe" -OutFile $cible
+          $reelle = (Get-FileHash $cible -Algorithm SHA256).Hash.ToLower()
+          if ($reelle -ne $env:WINSW_SHA256) { throw "Somme SHA-256 de WinSW inattendue" }
+
+      - name: Archive Windows portable
+        run: |
+          7z a -tzip -mx=5 -bso0 -bsp0 "dist\registris-$env:VERSION-windows.zip" ".\dist\registris-$env:VERSION"
+
+      - name: Installateur (Inno Setup, version fixée et vérifiée par empreinte)
+        run: |
+          $tag = "is-" + ($env:INNO_VERSION -replace '\.', '_')
+          Invoke-WebRequest "https://github.com/jrsoftware/issrc/releases/download/$tag/innosetup-$env:INNO_VERSION.exe" -OutFile innosetup.exe
+          $reelle = (Get-FileHash innosetup.exe -Algorithm SHA256).Hash.ToLower()
+          if ($reelle -ne $env:INNO_SHA256) { throw "Somme SHA-256 d'Inno Setup inattendue ($reelle)" }
+          $p = Start-Process -Wait -PassThru -FilePath "$PWD\innosetup.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS'
+          if ($p.ExitCode -ne 0) { throw "installation d'Inno Setup en échec ($($p.ExitCode))" }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc /Q "/DVersion=$env:VERSION" "/DSource=$PWD\dist\registris-$env:VERSION" "/DSortie=$PWD\dist" installation\windows\registris.iss
+          if ($LASTEXITCODE -ne 0) { throw "compilation Inno Setup en échec ($LASTEXITCODE)" }
+          Get-ChildItem dist\*.exe, dist\*.zip | ForEach-Object { "{0}  {1:N0} octets" -f $_.Name, $_.Length }
+          $lignes = Get-ChildItem dist\*.exe, dist\*.zip | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name }
+          [IO.File]::WriteAllLines("$PWD\dist\SHA256SUMS-windows.txt", $lignes)
+
+      - name: Essai d'installation silencieuse sur l'exécuteur
+        run: |
+          $env:REGISTRIS_MOT_DE_PASSE = 'Essai-Installateur-2026!'
+          $p = Start-Process -Wait -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" `
+            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\dist\installation.log", '"/Etablissement=CH Essai"', '/Port=3443', '/Tls=auto'
+          "Code de sortie de l'installateur : $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { Get-Content dist\installation.log | Select-Object -Last 40; throw "installation en échec" }
+          Get-Content "C:\Program Files\Registris\installation\windows\configurer.log" | Select-Object -Last 15
+          $s = Get-Service Registris
+          "Service : $($s.Status), démarrage $($s.StartType)"
+          if ($s.Status -ne 'Running') { Get-Content C:\ProgramData\Registris\journaux\*.log | Select-Object -Last 40; throw "service non démarré" }
+          $ok = $false
+          for ($i = 0; $i -lt 30 -and -not $ok; $i++) {
+            Start-Sleep -Seconds 1
+            try { $r = Invoke-WebRequest -SkipCertificateCheck -Uri https://127.0.0.1:3443/sante -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true } } catch {}
+          }
+          if (-not $ok) { Get-Content C:\ProgramData\Registris\journaux\*.log | Select-Object -Last 40; throw "pas de réponse sur https://127.0.0.1:3443/sante" }
+          "Santé : $($r.Content)"
+          if ($r.Content -notmatch '"statut":"ok"') { throw "réponse inattendue" }
+          $c = Invoke-WebRequest -SkipCertificateCheck -Uri https://127.0.0.1:3443/connexion -TimeoutSec 5
+          if ($c.Content -notmatch 'CH Essai') { throw "le nom de l'établissement n'apparaît pas sur la page de connexion" }
+          $comptes = & "C:\Program Files\Registris\node\node.exe" -e "const {DatabaseSync}=require('node:sqlite');console.log(JSON.stringify(new DatabaseSync('C:/ProgramData/Registris/registris.db',{readOnly:true}).prepare('SELECT login, role FROM utilisateurs').all()))"
+          "Comptes : $comptes"
+          if ($comptes -notmatch '"login":"admin"') { throw "compte administrateur absent" }
+          if ((Get-Content C:\ProgramData\Registris\registris.env -Raw) -notmatch 'TLS_PFX=') { throw "certificat auto-signé absent de la configuration" }
+          if (-not (Get-NetFirewallRule -DisplayName Registris -ErrorAction SilentlyContinue)) { throw "règle de pare-feu absente" }
+
+      - name: Essai de mise à jour et de désinstallation silencieuses
+        run: |
+          $p = Start-Process -Wait -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          if ($p.ExitCode -ne 0) { throw "mise à jour en échec ($($p.ExitCode))" }
+          Start-Sleep -Seconds 5
+          $s = Get-Service Registris
+          "Après mise à jour : service $($s.Status)"
+          if ($s.Status -ne 'Running') { throw "service arrêté après la mise à jour" }
+          $r = Invoke-WebRequest -SkipCertificateCheck -Uri https://127.0.0.1:3443/sante -TimeoutSec 5
+          if ($r.Content -notmatch '"statut":"ok"') { throw "santé en échec après mise à jour" }
+          $u = Start-Process -Wait -PassThru -FilePath "C:\Program Files\Registris\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          "Code de sortie de la désinstallation : $($u.ExitCode)"
+          Start-Sleep -Seconds 3
+          if (Get-Service Registris -ErrorAction SilentlyContinue) { throw "le service existe encore" }
+          if (Get-NetFirewallRule -DisplayName Registris -ErrorAction SilentlyContinue) { throw "la règle de pare-feu existe encore" }
+          if (Test-Path "C:\Program Files\Registris\src") { throw "l'application est encore présente" }
+          if (-not (Test-Path C:\ProgramData\Registris\registris.env)) { throw "les données auraient dû être conservées" }
+          "Désinstallation propre, données conservées."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installateur-windows-${{ env.VERSION }}
+          path: |
+            dist/*.exe
+            dist/*-windows.zip
+            dist/SHA256SUMS-windows.txt
+            dist/installation.log
+          if-no-files-found: error
+
+      - name: Publication sur la release
+        if: ${{ inputs.publier }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ("v$env:VERSION" -ne $env:GITHUB_REF_NAME) { throw "le tag $env:GITHUB_REF_NAME ne correspond pas à package.json ($env:VERSION)" }
+          gh release upload $env:GITHUB_REF_NAME "dist\registris-$env:VERSION-installateur.exe" "dist\registris-$env:VERSION-windows.zip" dist\SHA256SUMS-windows.txt --clobber
+          "Node.js $env:NODE_WIN embarqué."

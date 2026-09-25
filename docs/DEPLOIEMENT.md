@@ -12,8 +12,8 @@ Ce guide détaille chaque réglage, pour les adapter ou les faire à la main.
 
 - Une petite machine virtuelle Linux ou Windows suffit (1 vCPU, 1 Go de RAM,
   quelques Go de disque selon le volume de pièces).
-- Node.js 22 ou plus récent. Aucun autre service : pas de base de données à
-  installer, pas de compilateur.
+- Node.js 22 ou plus récent (l'installateur Windows l'embarque). Aucun autre
+  service : pas de base de données à installer, pas de compilateur.
 - Le fichier SQLite et le dossier des preuves doivent être sur un **disque local
   de la VM**, jamais sur un partage réseau (risque de corruption).
 

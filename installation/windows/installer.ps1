@@ -1,13 +1,14 @@
 ﻿<#
-  Installation de Registris sur Windows Server.
+  Installation de Registris sur Windows Server depuis l'archive décompressée (l'installateur graphique
+  registris-x.y.z-installateur.exe fait la même chose avec un assistant).
 
   Copie l'application, écrit la configuration hors du dossier de l'application, crée le compte
   administrateur, installe le service Windows « Registris » et ouvre le port. Relancé sur une
-  installation existante, il met l'application à jour sans toucher aux données.
+  installation existante, met l'application à jour sans toucher aux données. Node.js est pris dans
+  le dossier node\ de l'archive s'il est présent, sinon dans le PATH.
 
-  À lancer depuis l'archive de release décompressée, en administrateur :
     installation\windows\installer.cmd                       (clic droit, puis répondre aux questions)
-    .\installer.ps1 -Etablissement "CH de Ville" -Port 443    (en PowerShell)
+    .\installer.ps1 -Etablissement "CH de Ville" -Port 443    (en PowerShell, administrateur)
 
   Options : -Dossier, -Donnees, -Port, -Etablissement, -Admin,
             -Tls auto|pfx|pem|aucun, -Certificat, -Cle, -MotDePassePfx,
@@ -34,11 +35,6 @@ $Dossier = [IO.Path]::GetFullPath($Dossier)
 $Donnees = [IO.Path]::GetFullPath($Donnees)
 function Etape($t) { Write-Host ''; Write-Host "== $t" -ForegroundColor Cyan }
 function Echec($t) { Write-Host "ECHEC : $t" -ForegroundColor Red; exit 1 }
-function Hexa($n) {
-  $octets = New-Object byte[] $n
-  (New-Object Security.Cryptography.RNGCryptoServiceProvider).GetBytes($octets)
-  return ($octets | ForEach-Object { $_.ToString('x2') }) -join ''
-}
 function EnClair($secure) {
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
   try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
@@ -62,19 +58,26 @@ $Source = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (-not (Test-Path (Join-Path $Source 'package.json'))) { Echec "package.json introuvable dans $Source : lancez ce script depuis l'archive décompressée." }
 if (-not (Test-Path (Join-Path $Source 'node_modules'))) { Echec "node_modules absent : utilisez l'archive de release (dépendances incluses), pas le dépôt git." }
 $Version = (Get-Content (Join-Path $Source 'package.json') -Raw | ConvertFrom-Json).version
-$node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) { Echec 'Node.js est absent. Installez Node.js 22 LTS ou plus récent (installeur MSI sur https://nodejs.org), puis relancez.' }
-$nodeExe = $node.Source
-$majeure = [int]((& $nodeExe --version).TrimStart('v').Split('.')[0])
-if ($majeure -lt 22) { Echec "Node.js $majeure trouvé, version 22 minimum requise." }
+$nodeExe = ''
+if (Test-Path (Join-Path $Source 'node\node.exe')) {
+  $nodeExe = Join-Path $Dossier 'node\node.exe'
+  Write-Host "Node.js livré avec l'archive : $(& (Join-Path $Source 'node\node.exe') --version)"
+} else {
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $node) { Echec 'Node.js est absent et l''archive ne le contient pas : installez Node.js 22 LTS ou plus récent (https://nodejs.org), ou utilisez l''archive Windows de la release.' }
+  $majeure = [int]((& $node.Source --version).TrimStart('v').Split('.')[0])
+  if ($majeure -lt 22) { Echec "Node.js $majeure trouvé, version 22 minimum requise." }
+  $nodeExe = $node.Source
+  Write-Host "Node.js du système : $(& $node.Source --version)"
+}
 $exeService = Join-Path $PSScriptRoot 'registris-service.exe'
 if (-not $SansService -and -not (Test-Path $exeService)) {
-  Echec "registris-service.exe absent de $PSScriptRoot : il est fourni dans l'archive de release (WinSW 2.12.0)."
+  Echec "registris-service.exe absent de $PSScriptRoot : il est fourni dans l'archive Windows de la release (WinSW 2.12.0)."
 }
 $service = Get-Service -Name Registris -ErrorAction SilentlyContinue
 $config = Join-Path $Donnees 'registris.env'
 $miseAJour = ($null -ne $service) -or (Test-Path $config)
-Write-Host "Registris $Version, Node.js $(& $nodeExe --version), $(if ($miseAJour) { 'mise à jour d''une installation existante' } else { 'nouvelle installation' })"
+if ($miseAJour) { Write-Host "Registris $Version : mise à jour d'une installation existante" } else { Write-Host "Registris $Version : nouvelle installation" }
 
 $motDePasse = $null
 if (-not $miseAJour -and -not $Silencieux) {
@@ -97,107 +100,30 @@ New-Item -ItemType Directory -Force -Path $Dossier | Out-Null
 if ($LASTEXITCODE -ge 8) { Echec "copie impossible (robocopy $LASTEXITCODE)" }
 Write-Host "Copié : $Dossier"
 
-Etape "Dossiers de données : $Donnees"
-foreach ($d in '', 'preuves', 'logos', 'ancrages', 'sauvegardes', 'journaux', 'tls') {
-  New-Item -ItemType Directory -Force -Path (Join-Path $Donnees $d) | Out-Null
+Etape 'Configuration'
+$appel = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $Dossier 'installation\windows\configurer.ps1'),
+  '-Dossier', $Dossier, '-Donnees', $Donnees, '-Node', $nodeExe, '-Port', $Port, '-Admin', $Admin, '-Tls', $Tls)
+foreach ($p in @{ Etablissement = $Etablissement; Certificat = $Certificat; Cle = $Cle; MotDePassePfx = $MotDePassePfx }.GetEnumerator()) {
+  if ($p.Value) { $appel += "-$($p.Key)", $p.Value }
 }
-# LocalService (S-1-5-19) fait tourner le service : lecture et écriture sur les données.
-& icacls $Donnees /grant '*S-1-5-19:(OI)(CI)M' /T /Q | Out-Null
-
-if (-not $miseAJour) {
-  Etape 'Certificat et configuration'
-  $hote = '0.0.0.0'
-  $tlsLignes = @()
-  $dossierTls = Join-Path $Donnees 'tls'
-  switch ($Tls) {
-    'aucun' {
-      $hote = '127.0.0.1'
-      $tlsLignes = @('# Sans TLS : écoute locale seulement, à exposer par un reverse-proxy HTTPS (IIS avec ARR, nginx).')
-      Write-Host 'Sans TLS : l''application n''écoutera que sur 127.0.0.1.'
-    }
-    'pfx' {
-      if (-not (Test-Path $Certificat)) { Echec "certificat PFX introuvable : $Certificat" }
-      Copy-Item $Certificat (Join-Path $dossierTls 'registris.pfx') -Force
-      $tlsLignes = @("TLS_PFX=$dossierTls\registris.pfx", "TLS_PFX_MOT_DE_PASSE=$MotDePassePfx")
-      Write-Host "Certificat PFX copié dans $dossierTls."
-    }
-    'pem' {
-      if (-not (Test-Path $Certificat) -or -not (Test-Path $Cle)) { Echec 'certificat ou clé PEM introuvable (-Certificat, -Cle)' }
-      Copy-Item $Certificat (Join-Path $dossierTls 'registris.crt') -Force
-      Copy-Item $Cle (Join-Path $dossierTls 'registris.key') -Force
-      $tlsLignes = @("TLS_CERT=$dossierTls\registris.crt", "TLS_KEY=$dossierTls\registris.key")
-      Write-Host "Certificat et clé copiés dans $dossierTls."
-    }
-    'auto' {
-      $nomHote = [Net.Dns]::GetHostName()
-      $noms = @($nomHote, 'localhost')
-      try { $fqdn = [Net.Dns]::GetHostEntry($nomHote).HostName; if ($fqdn -and $fqdn -ne $nomHote) { $noms += $fqdn } } catch {}
-      $magasin = if ($estAdmin) { 'Cert:\LocalMachine\My' } else { 'Cert:\CurrentUser\My' }
-      $cert = New-SelfSignedCertificate -DnsName $noms -CertStoreLocation $magasin -FriendlyName "Registris ($nomHote)" -NotAfter (Get-Date).AddYears(3) -KeyExportPolicy Exportable
-      $mdpPfx = Hexa 16
-      $pfx = Join-Path $dossierTls 'registris.pfx'
-      Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString $mdpPfx -AsPlainText -Force) -CryptoAlgorithmOption AES256_SHA256 | Out-Null
-      Remove-Item $cert.PSPath
-      $tlsLignes = @(
-        "# Certificat auto-signé généré à l'installation pour $($noms -join ', ') : le navigateur avertira.",
-        '# Remplacez-le par un certificat de votre PKI (TLS_PFX exporté en AES256_SHA256, ou TLS_CERT et TLS_KEY).',
-        "TLS_PFX=$pfx",
-        "TLS_PFX_MOT_DE_PASSE=$mdpPfx"
-      )
-      Write-Host "Certificat auto-signé créé pour $($noms -join ', ')."
-    }
-  }
-  # Lisible par les administrateurs, le service (LocalService) et le compte qui installe, personne d'autre.
-  $sidCourant = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  & icacls $dossierTls /inheritance:r /grant '*S-1-5-32-544:(OI)(CI)F' /grant '*S-1-5-19:(OI)(CI)R' /grant "*${sidCourant}:(OI)(CI)F" /Q | Out-Null
-
-  $lignes = @(
-    "# Configuration de Registris, lue par le service (variable REGISTRIS_CONFIG). Modèle complet : $Dossier\.env.example",
-    "NOM_ETABLISSEMENT=$Etablissement",
-    'NODE_ENV=production',
-    "HOTE=$hote",
-    "PORT=$Port",
-    "SESSION_SECRET=$(Hexa 48)",
-    "DB_PATH=$Donnees\registris.db",
-    "PREUVES_DIR=$Donnees\preuves",
-    "LOGOS_DIR=$Donnees\logos",
-    "ANCRAGES_DIR=$Donnees\ancrages",
-    "SAUVEGARDES_DIR=$Donnees\sauvegardes"
-  ) + $tlsLignes + @(
-    'AUTH_MODE=local',
-    '# Active Directory : AUTH_MODE=ldap puis les lignes LDAP_* du modèle .env.example.',
-    '# Courriels : SMTP_HOST=smtp.etablissement.local et SMTP_FROM=registris@etablissement.fr.'
-  )
-  [IO.File]::WriteAllLines($config, $lignes, (New-Object Text.UTF8Encoding $false))
-  & icacls $config /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-19:R' /grant "*${sidCourant}:F" /Q | Out-Null
-  Write-Host "Configuration écrite : $config"
-
-  Etape "Compte administrateur « $Admin »"
-  $env:REGISTRIS_CONFIG = $config
-  $env:REGISTRIS_MOT_DE_PASSE = $motDePasse
-  try {
-    & $nodeExe (Join-Path $Dossier 'src\cli.js') utilisateur $Admin admin 'Administrateur'
-    if ($LASTEXITCODE -ne 0) { Echec 'création du compte administrateur' }
-  } finally {
-    Remove-Item Env:REGISTRIS_MOT_DE_PASSE -ErrorAction SilentlyContinue
-  }
-} else {
-  $hote = ((Get-Content $config) | Where-Object { $_ -like 'HOTE=*' } | Select-Object -First 1) -replace '^HOTE=', ''
-  $saisiePort = ((Get-Content $config) | Where-Object { $_ -like 'PORT=*' } | Select-Object -First 1) -replace '^PORT=', ''
-  if ($saisiePort) { $Port = [int]$saisiePort }
-  Write-Host "Configuration conservée : $config"
+$env:REGISTRIS_MOT_DE_PASSE = $motDePasse
+try {
+  & powershell @appel
+  if ($LASTEXITCODE -ne 0) { Echec 'configuration' }
+} finally {
+  Remove-Item Env:REGISTRIS_MOT_DE_PASSE -ErrorAction SilentlyContinue
 }
-$tlsActif = (Get-Content $config) | Where-Object { $_ -like 'TLS_PFX=*' -or $_ -like 'TLS_CERT=*' } | Select-Object -First 1
+$lignesConfig = Get-Content $config
+$hote = (($lignesConfig | Where-Object { $_ -like 'HOTE=*' } | Select-Object -First 1) -replace '^HOTE=', '')
+$portConfig = (($lignesConfig | Where-Object { $_ -like 'PORT=*' } | Select-Object -First 1) -replace '^PORT=', '')
+if ($portConfig) { $Port = [int]$portConfig }
+$tlsActif = $lignesConfig | Where-Object { $_ -like 'TLS_PFX=*' -or $_ -like 'TLS_CERT=*' } | Select-Object -First 1
+$schema = 'http'
+if ($tlsActif) { $schema = 'https' }
 
 if (-not $SansService) {
   Etape 'Service Windows « Registris »'
-  $svc = Join-Path $Dossier 'service'
-  New-Item -ItemType Directory -Force -Path $svc | Out-Null
-  $exe = Join-Path $svc 'registris-service.exe'
-  Copy-Item $exeService $exe -Force
-  $xml = (Get-Content (Join-Path $PSScriptRoot 'registris-service.xml') -Raw)
-  $xml = $xml.Replace('{{NODE}}', $nodeExe).Replace('{{DOSSIER}}', $Dossier).Replace('{{CONFIG}}', $config).Replace('{{JOURNAUX}}', (Join-Path $Donnees 'journaux'))
-  [IO.File]::WriteAllText((Join-Path $svc 'registris-service.xml'), $xml, (New-Object Text.UTF8Encoding $false))
+  $exe = Join-Path $Dossier 'service\registris-service.exe'
   if (-not $service) {
     & $exe install | Out-Null
     if ($LASTEXITCODE -ne 0) { Echec "installation du service (code $LASTEXITCODE)" }
@@ -213,25 +139,25 @@ if (-not $SansService) {
   Write-Host 'Service démarré.'
 
   Etape 'Vérification'
-  $schema = if ($tlsActif) { 'https' } else { 'http' }
   $url = "${schema}://127.0.0.1:$Port/sante"
-  [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+  $sonde = "require(process.argv[1]).get(process.argv[2],{rejectUnauthorized:false,timeout:3000},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{process.stdout.write(d);process.exit(r.statusCode===200?0:1)})}).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})"
   $ok = $false
   for ($i = 0; $i -lt 20 -and -not $ok; $i++) {
     Start-Sleep -Seconds 1
-    try { $r = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true } } catch {}
+    $reponse = & $nodeExe -e $sonde $schema $url
+    if ($LASTEXITCODE -eq 0) { $ok = $true }
   }
   if (-not $ok) { Echec "le service ne répond pas sur $url ; consultez $Donnees\journaux\registris-service.err.log" }
-  Write-Host "Réponse reçue : $($r.Content)"
+  Write-Host "Réponse reçue : $reponse"
 }
 
 Etape 'Terminé'
-$schema = if ($tlsActif) { 'https' } else { 'http' }
-$adresse = if ($hote -eq '127.0.0.1') { "${schema}://127.0.0.1:$Port/" } else { "${schema}://$([Net.Dns]::GetHostName()):$Port/" }
+$adresse = "${schema}://$([Net.Dns]::GetHostName()):$Port/"
+if ($hote -eq '127.0.0.1') { $adresse = "${schema}://127.0.0.1:$Port/" }
 Write-Host "Registris $Version : $adresse"
 if (-not $miseAJour) { Write-Host "Compte administrateur : $Admin" }
 Write-Host "Configuration : $config"
 Write-Host "Données et sauvegardes : $Donnees"
-if ($SansService) { Write-Host "Démarrage manuel : `$env:REGISTRIS_CONFIG='$config'; node `"$Dossier\src\cli.js`" servir" }
+if ($SansService) { Write-Host "Démarrage manuel : `$env:REGISTRIS_CONFIG='$config'; & `"$nodeExe`" `"$Dossier\src\cli.js`" servir" }
 Write-Host 'Étapes suivantes : Active Directory et courriels dans la configuration, puis les tâches planifiées'
 Write-Host "(sauvegarder, ancrer, verifier, relancer) décrites dans $Dossier\docs\DEPLOIEMENT.md."
