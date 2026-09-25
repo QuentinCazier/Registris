@@ -24,6 +24,8 @@ env:
   WINSW_SHA256: 05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da
   INNO_VERSION: 6.7.3
   INNO_SHA256: 9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732
+  # Signature par SignPath Foundation, active dès que le secret existe (docs/SIGNATURE.md).
+  SIGNATURE: ${{ secrets.SIGNPATH_API_TOKEN != '' && 'oui' || 'non' }}
 
 jobs:
   construire:
@@ -89,6 +91,38 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           & $iscc /Q "/DVersion=$env:VERSION" "/DSource=$PWD\dist\registris-$env:VERSION" "/DSortie=$PWD\dist" installation\windows\registris.iss
           if ($LASTEXITCODE -ne 0) { throw "compilation Inno Setup en échec ($LASTEXITCODE)" }
+
+      - name: Installateur non signé, transmis à SignPath
+        id: non-signe
+        if: env.SIGNATURE == 'oui'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installateur-non-signe
+          path: dist/*-installateur.exe
+          if-no-files-found: error
+
+      - name: Signature (SignPath Foundation)
+        if: env.SIGNATURE == 'oui'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: registris
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.non-signe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist-signe
+
+      - name: Installateur signé à la place du non signé
+        if: env.SIGNATURE == 'oui'
+        run: |
+          Copy-Item dist-signe\*-installateur.exe dist\ -Force
+          $s = Get-AuthenticodeSignature (Get-ChildItem dist\*-installateur.exe).FullName
+          "Signature : $($s.Status), $($s.SignerCertificate.Subject)"
+          if ($s.Status -ne 'Valid') { throw "signature absente ou invalide" }
+
+      - name: Sommes SHA-256
+        run: |
           Get-ChildItem dist\*.exe, dist\*.zip | ForEach-Object { "{0}  {1:N0} octets" -f $_.Name, $_.Length }
           $lignes = Get-ChildItem dist\*.exe, dist\*.zip | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name }
           [IO.File]::WriteAllLines("$PWD\dist\SHA256SUMS-windows.txt", $lignes)

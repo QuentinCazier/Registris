@@ -33,20 +33,27 @@ import { monter as admin } from './routes/admin.js';
 import { monter as indicateurs } from './routes/indicateurs.js';
 import { monter as rapprochement } from './routes/rapprochement.js';
 import { monter as aide } from './routes/aide.js';
+import { monter as departs } from './routes/departs.js';
+import { monter as approbations } from './routes/approbations.js';
+import { monter as absences } from './routes/absences.js';
+import { monter as adminApi, routeurApi } from './routes/api.js';
+import { perimetreEffectif } from './suppleances.js';
+import { compterAApprouver } from './accords.js';
+import { departsAConfirmer } from './departs.js';
 
 const { version: VERSION } = createRequire(import.meta.url)('../package.json');
 
 // « /habilitations/nouvelle » doit passer avant « /habilitations/:id ».
 const ROUTES = [
   connexion, accueil, traitement, revue, agents, demandes, registre, habilitation, packs, audit, indicateurs,
-  rapprochement, admin, aide,
+  rapprochement, admin, aide, departs, approbations, absences, adminApi,
 ];
 
 // Seules ces routes lisent un formulaire multipart ; elles vérifient le jeton après multer.
 const MULTIPART = [
   /^\/habilitations$/, /^\/habilitations\/multiple$/, /^\/habilitations\/\d+\/preuves$/,
   /^\/rapprochements$/, /^\/admin\/applications$/, /^\/admin\/applications\/\d+\/modifier$/,
-  /^\/admin\/import\/(applications|ufs)$/,
+  /^\/admin\/import\/(applications|ufs)$/, /^\/departs\/fichier-rh$/,
 ];
 
 const refusJeton = (res) => res.status(403).type('html').send(
@@ -85,8 +92,13 @@ export function creerApp() {
     res.json({ application: 'registris', version: VERSION, statut: base === 'ok' ? 'ok' : 'degrade', base });
   });
 
+  // API en lecture : jeton porteur, ni session ni cookie.
+  app.use('/api/v1', routeurApi());
+
   app.use(express.static(config.publicDir, { index: false, maxAge: '1h' }));
   app.use(express.urlencoded({ extended: false, limit: '200kb' }));
+  // Express 5 laisse req.body indéfini quand rien n'a été lu.
+  app.use((req, res, next) => { req.body ??= {}; next(); });
   app.use(
     session({
       store: new MagasinSessions(),
@@ -129,17 +141,35 @@ export function creerApp() {
     next();
   });
 
+  // Le périmètre d'un référent suit ses suppléances du jour, sans reconnexion.
   app.use((req, res, next) => {
     const u = req.session?.utilisateur;
-    if (!u || req.method !== 'GET' || !peut(u.role, 'habilitation:suivre')) return next();
+    if (u?.role === 'referent') {
+      try {
+        if (u.perimetrePropre === undefined) u.perimetrePropre = u.referentApps;
+        u.referentApps = perimetreEffectif(u.login, u.perimetrePropre);
+      } catch {
+        /* base pas encore prête : le périmètre de la connexion reste valable */
+      }
+    }
+    next();
+  });
+
+  app.use((req, res, next) => {
+    const u = req.session?.utilisateur;
+    if (!u || req.method !== 'GET') return next();
     try {
-      const s = statistiques();
-      const campagne = enCours();
-      req.compteurs = {
-        aTraiter: compterHabilitations({ file: true, applicationIds: perimetreRevue(u) }),
-        registre: s.habilitations,
-        revue: campagne ? resteAStatuer(campagne.id, perimetreRevue(u)) : 0,
-      };
+      req.compteurs = { approbations: compterAApprouver(u.login) };
+      if (peut(u.role, 'habilitation:suivre')) {
+        const s = statistiques();
+        const campagne = enCours();
+        Object.assign(req.compteurs, {
+          aTraiter: compterHabilitations({ file: true, applicationIds: perimetreRevue(u) }),
+          registre: s.habilitations,
+          revue: campagne ? resteAStatuer(campagne.id, perimetreRevue(u)) : 0,
+          departs: departsAConfirmer().length,
+        });
+      }
     } catch {
       /* la navigation se passe de compteurs si la base n'est pas prête */
     }

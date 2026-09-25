@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PNG } from './_env.js';
+import './_env.js';
 
 const { initialiserSchema } = await import('../src/db.js');
 const A = await import('../src/administration.js');
@@ -66,7 +66,7 @@ const PAGES = [
   `/habilitations/nouvelle/multiple?apps=${gam}&apps=${dpi}`,
   `/habilitations/nouvelle/${gam}`, '/packs', '/export', '/coffre', '/audit', '/revues',
   '/admin/applications', '/admin/categories', '/admin/ufs', '/admin/sites',
-  '/admin/utilisateurs', '/admin/routage', '/admin/import', '/aide', '/admin/packs', '/admin/bibliotheque', '/indicateurs', '/rapprochements',
+  '/admin/utilisateurs', '/admin/routage', '/admin/import', '/aide', '/admin/api', '/absences', '/departs', '/approbations', '/admin/packs', '/admin/bibliotheque', '/indicateurs', '/rapprochements',
 ];
 
 const pages = new Map();

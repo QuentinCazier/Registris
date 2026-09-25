@@ -85,5 +85,38 @@ async function chercherAgentLdap(matricule) {
   });
 }
 
+// État des comptes par matricule, par lots : trouvé, désactivé (bit ACCOUNTDISABLE de userAccountControl).
+async function etatComptesLdap(matricules) {
+  const liste = [...new Set(matricules.map(valeur).filter(Boolean))];
+  const etats = new Map();
+  if (!liste.length) return etats;
+  const { OrFilter, EqualityFilter } = await import('ldapts');
+  return avecCompteDeService(async (client) => {
+    for (let i = 0; i < liste.length; i += 50) {
+      const lot = liste.slice(i, i + 50);
+      const { searchEntries } = await client.search(config.ldap.searchBase, {
+        scope: 'sub',
+        filter: new OrFilter({
+          filters: lot.flatMap((m) => [
+            new EqualityFilter({ attribute: 'employeeNumber', value: m }),
+            new EqualityFilter({ attribute: 'employeeID', value: m }),
+          ]),
+        }),
+        attributes: ['sAMAccountName', 'employeeNumber', 'employeeID', 'userAccountControl'],
+      });
+      for (const e of searchEntries) {
+        const m = valeur(e.employeeNumber) || valeur(e.employeeID);
+        if (!lot.includes(m)) continue;
+        const uac = Number(valeur(e.userAccountControl)) || 0;
+        const desactive = (uac & 2) === 2;
+        // Plusieurs comptes pour un matricule : désactivé seulement si tous le sont.
+        const avant = etats.get(m);
+        etats.set(m, { trouve: true, desactive: avant ? avant.desactive && desactive : desactive, login: valeur(e.sAMAccountName).toLowerCase() });
+      }
+    }
+    return etats;
+  });
+}
+
 // Remplaçable par les tests, qui n'ont pas d'annuaire.
-export const annuaire = { groupesImbriques: groupesImbriquesLdap, chercherAgent: chercherAgentLdap };
+export const annuaire = { groupesImbriques: groupesImbriquesLdap, chercherAgent: chercherAgentLdap, etatComptes: etatComptesLdap };

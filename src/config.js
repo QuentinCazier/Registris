@@ -13,7 +13,7 @@ const bool = (v, defaut = false) =>
 // Les guillemets qui entourent une valeur sont retirés, comme le font les autres lecteurs de .env.
 export function analyserDotEnv(texte) {
   const valeurs = {};
-  for (const ligne of String(texte ?? '').replace(/^﻿/, '').split(/\r?\n/)) {
+  for (const ligne of String(texte ?? '').replace(/^\ufeff/, '').split(/\r?\n/)) {
     const trim = ligne.trim();
     if (!trim || trim.startsWith('#')) continue;
     const egal = trim.indexOf('=');
@@ -80,6 +80,8 @@ export const config = {
 
   // Seuil en jours au-delà duquel une demande est en retard et relancée.
   relanceJours: Math.max(1, Number(process.env.RELANCE_JOURS ?? 7)),
+  entretienAuto: !/^(0|non|false)$/i.test(String(process.env.ENTRETIEN_AUTO ?? '')),
+  conservationAnnees: Math.max(1, Number(process.env.CONSERVATION_ANNEES ?? 5)),
 
   // Taille maximale d'une pièce de preuve téléversée (octets).
   tailleMaxPreuve: Number(process.env.TAILLE_MAX_PREUVE ?? 25 * 1024 * 1024),
@@ -153,7 +155,7 @@ export function verifierPourProduction({ production = process.env.NODE_ENV === '
       avertissements.push(`SESSION_SECRET non défini : secret généré et conservé dans ${cheminSecret()}.`);
     } catch (e) {
       const msg = `SESSION_SECRET non défini et impossible d'en conserver un (${e.message}) : définissez-le dans la configuration.`;
-      if (production) throw new Error(msg);
+      if (production) throw new Error(msg, { cause: e });
       avertissements.push(msg);
     }
   }

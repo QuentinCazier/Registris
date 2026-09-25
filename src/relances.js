@@ -7,6 +7,7 @@ import { CONDITION_FILE } from './habilitations.js';
 import { emailUtilisateur } from './administration.js';
 import { getRoutage } from './parametres.js';
 import { notifier } from './mailer.js';
+import { suppleantDe } from './suppleances.js';
 
 // Date de début d'attente : dépôt pour une ouverture, signalement pour une fermeture.
 const DEPUIS = 'COALESCE(h.retrait_demande_le, h.date_demande, h.cree_le)';
@@ -35,7 +36,8 @@ export function aRelancer({ jours = config.relanceJours } = {}) {
 }
 
 export function destinataire(h) {
-  const assigne = h.assigne_a ? emailUtilisateur(h.assigne_a) : null;
+  const traitant = h.assigne_a ? suppleantDe(h.assigne_a) ?? h.assigne_a : null;
+  const assigne = traitant ? emailUtilisateur(traitant) : null;
   return assigne || getRoutage(h.app_cat_id) || '';
 }
 

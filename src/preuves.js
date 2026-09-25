@@ -81,6 +81,7 @@ export function cheminPreuve(preuve) {
 }
 
 export function verifierIntegrite(preuve) {
+  if (preuve.purgee_le) return { intacte: true, purgee: true };
   const chemin = cheminPreuve(preuve);
   if (!fs.existsSync(chemin)) return { intacte: false, raison: 'fichier absent' };
   const sha256 = crypto.createHash('sha256').update(fs.readFileSync(chemin)).digest('hex');
@@ -89,7 +90,7 @@ export function verifierIntegrite(preuve) {
 
 // Renvoie les pièces altérées ou manquantes.
 export function auditerCoffre() {
-  const preuves = ouvrirDb().prepare('SELECT * FROM preuves ORDER BY id').all();
+  const preuves = ouvrirDb().prepare('SELECT * FROM preuves WHERE purgee_le IS NULL ORDER BY id').all();
   const anomalies = [];
   for (const p of preuves) {
     const r = verifierIntegrite(p);

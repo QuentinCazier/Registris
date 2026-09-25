@@ -22,6 +22,10 @@ clic.
 
 ![Tableau de bord de Registris](site/captures/accueil.png)
 
+La demande : on coche les applications, la barre du bas les nomme, un seul bouton pour continuer.
+
+![Nouvelle demande dans Registris](site/captures/demande.png)
+
 La boîte de traitement : la file des demandes à gauche, le dossier complet et les actions à droite.
 
 ![Boîte de traitement de Registris](site/captures/traitement.png)
@@ -64,6 +68,20 @@ La revue périodique : chaque référent statue sur ses applications, et le rapp
 - **Prise en charge** : chaque demande de la file porte le nom de qui la traite.
   Un référent se l'attribue ou la confie à un pair de la même application, et
   filtre sa file sur « à moi » ou « sans traitant ».
+- **Accès temporaires** : stagiaires, intérimaires, remplaçants. Une date de fin
+  sur la demande, et la fermeture est demandée d'elle-même au référent à
+  l'échéance. Le registre les regroupe dans un onglet.
+- **Départs détectés** : chaque jour, les comptes désactivés dans l'Active
+  Directory ; à la demande, un fichier RH des sorties ou des présents. L'outil
+  signale les agents qui gardent des accès ouverts ; un référent confirme, et
+  la fermeture de tous leurs accès est demandée.
+- **Accord du cadre, en option** : pour les applications qui l'exigent, le
+  responsable de l'UF donne son accord avant que le référent n'agisse. Un accord
+  obtenu par courriel s'enregistre aussi, avec qui et comment.
+- **Suppléance** : pendant l'absence d'un référent, un autre reçoit son
+  périmètre, sans reconnexion, jusqu'à la date de fin.
+- **API en lecture** : GLPI ou la supervision lisent la file et les accès d'un
+  agent avec un jeton révocable ([docs/API.md](docs/API.md)).
 - **Coffre à preuves** : on joint le courriel de la demande (.msg, .eml), la
   capture de la validation, le PDF signé. Chaque pièce est empreintée (SHA-256)
   au dépôt ; l'outil peut prouver à tout moment qu'elle n'a pas bougé.
@@ -115,6 +133,9 @@ La revue périodique : chaque référent statue sur ses applications, et le rapp
   (fichier, courriel) rend détectable un remplacement de la base entière.
 - **Sauvegarde et restauration** en une commande, avec manifeste d'empreintes
   et contrôle d'une archive sans rien écrire.
+- **Durées de conservation** : au-delà de la durée fixée, l'identité des agents
+  partis est effacée et leurs pièces supprimées ; fiche pour le registre des
+  traitements prête pour le DPO ([docs/RGPD.md](docs/RGPD.md)).
 - **Authentification Active Directory** (bind LDAPS, rôles par groupes AD,
   groupes imbriqués en option, compte local de secours quand l'annuaire est
   injoignable) ou comptes locaux ; notifications par le relais SMTP interne.

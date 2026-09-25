@@ -4,19 +4,21 @@ import { ouvrirDb, transaction } from './db.js';
 import { tracer } from './audit.js';
 import { creerApplication, creerCategorie, modifierApplication, normaliserProfils } from './administration.js';
 import { decoder, lireCsv } from './rapprochements.js';
+import { definirResponsablesUf } from './accords.js';
 
-const sansAccents = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const sansAccents = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 export const MODELE_APPLICATIONS = [
-  ['Code', 'Libellé', 'Catégorie', 'Référents', 'Profils'],
-  ['GAM', 'Gestion administrative des malades', 'Gestion administrative', 'jdupont, mmartin', 'Admissions, Facturation, Consultation'],
-  ['DPI', 'Dossier patient informatisé', 'Dossier patient et soins', 'pdurand', 'Soignant, Médecin, Secrétaire médicale'],
+  ['Code', 'Libellé', 'Catégorie', 'Référents', 'Profils', 'Accord du cadre'],
+  ['GAM', 'Gestion administrative des malades', 'Gestion administrative', 'jdupont, mmartin', 'Admissions, Facturation, Consultation', 'non'],
+  ['DPI', 'Dossier patient informatisé', 'Dossier patient et soins', 'pdurand', 'Soignant, Médecin, Secrétaire médicale', 'oui'],
 ];
 export const MODELE_UFS = [
-  ['Code', 'Libellé'],
-  ['1101', 'Médecine polyvalente'],
-  ['2401', 'Urgences'],
+  ['Code', 'Libellé', 'Cadres'],
+  ['1101', 'Médecine polyvalente', 'cadre.medecine'],
+  ['2401', 'Urgences', 'cadre.urgences, cadre.nuit'],
 ];
+const OUI = /^(oui|o|yes|y|1|x|vrai|true)$/i;
 
 // Colonnes reconnues par leur en-tête ; sans en-tête, dans l'ordre du modèle.
 function colonnes(lignes, attendues) {
@@ -37,7 +39,7 @@ export function importerApplications(acteur, tampon) {
   if (!lignes.length) throw new Error('Le fichier est vide.');
   const { index, donnees, decalage } = colonnes(lignes, {
     code: [/^code/], libelle: [/libelle/, /^nom/, /application/], categorie: [/categ/, /famille/, /domaine/],
-    referents: [/referent/, /responsable/], profils: [/profil/, /role/, /droit/],
+    referents: [/referent/], profils: [/profil/, /role/, /droit/], accord: [/accord/, /cadre/, /approbation/],
   });
   if (index.code === undefined) throw new Error('Colonne « Code » introuvable.');
   const db = ouvrirDb();
@@ -65,11 +67,13 @@ export function importerApplications(acteur, tampon) {
             libelle: libelle || undefined,
             categorieId: categorieId ?? undefined,
             profils: profils ? normaliserProfils(profils) : undefined,
+            accordCadre: cellule(l, 'accord') ? OUI.test(cellule(l, 'accord')) : undefined,
           });
           bilan.modifiees += 1;
         } else {
           if (!libelle) throw new Error(`libellé manquant pour ${code}`);
           id = creerApplication(acteur, { code, libelle, categorieId, profils });
+          if (OUI.test(cellule(l, 'accord'))) modifierApplication(acteur, id, { accordCadre: true });
           bilan.creees += 1;
         }
         const lien = db.prepare('INSERT OR IGNORE INTO referent_applications (login, application_id) VALUES (?, ?)');
@@ -89,7 +93,7 @@ export function importerApplications(acteur, tampon) {
 export function importerUfs(acteur, tampon) {
   const { lignes } = lireCsv(decoder(tampon));
   if (!lignes.length) throw new Error('Le fichier est vide.');
-  const { index, donnees, decalage } = colonnes(lignes, { code: [/^code/, /^uf$/, /numero/], libelle: [/libelle/, /^nom/, /intitule/] });
+  const { index, donnees, decalage } = colonnes(lignes, { code: [/^code/, /^uf$/, /numero/], libelle: [/libelle/, /^nom/, /intitule/], cadres: [/cadre/, /responsable/] });
   if (index.code === undefined || index.libelle === undefined) throw new Error('Colonnes « Code » et « Libellé » introuvables.');
   const db = ouvrirDb();
   const bilan = { creees: 0, modifiees: 0, erreurs: [] };
@@ -106,6 +110,14 @@ export function importerUfs(acteur, tampon) {
       else if (!db.prepare('SELECT 1 FROM ufs WHERE code = ?').get(code)) {
         db.prepare('INSERT INTO ufs (code, libelle) VALUES (?, ?)').run(code, libelle);
         bilan.creees += 1;
+      }
+      const cadres = index.cadres === undefined ? '' : String(l[index.cadres] ?? '').trim();
+      if (cadres) {
+        try {
+          definirResponsablesUf(acteur, db.prepare('SELECT id FROM ufs WHERE code = ?').get(code).id, cadres);
+        } catch (e) {
+          bilan.erreurs.push({ ligne: i + decalage, message: e.message });
+        }
       }
     });
     tracer(acteur, 'import:ufs', { details: { creees: bilan.creees, modifiees: bilan.modifiees, erreurs: bilan.erreurs.length } });

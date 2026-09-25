@@ -590,8 +590,16 @@ const SECTIONS = [
   { cle: 'traiter', href: '/traiter', libelle: 'À traiter', icone: 'boite', droit: 'habilitation:suivre', compteur: 'aTraiter' },
   { cle: 'registre', href: '/suivi', libelle: 'Registre', icone: 'liste', droit: 'habilitation:suivre', compteur: 'registre' },
   { cle: 'miennes', href: '/mes-demandes', libelle: 'Mes demandes', icone: 'colonnes' },
+  {
+    cle: 'approbations', href: '/approbations', libelle: 'Accords à donner', icone: 'revue', compteur: 'approbations',
+    visible: (role, c, section) => (c.approbations ?? 0) > 0 || section === 'approbations',
+  },
   { cle: 'depart', href: '/depart', libelle: 'Signaler un départ', icone: 'sortie', droit: 'habilitation:creer' },
   { cle: 'agents', href: '/recherche', libelle: 'Agents', icone: 'users', droit: 'habilitation:lire' },
+  {
+    cle: 'departs', href: '/departs', libelle: 'Départs détectés', icone: 'alerte', droit: 'habilitation:suivre', compteur: 'departs',
+    visible: (role, c, section) => (c.departs ?? 0) > 0 || section === 'departs',
+  },
   // Visible pour qui pilote ou contrôle, sinon seulement quand une campagne attend l'utilisateur.
   {
     cle: 'revues', href: '/revues', libelle: 'Revue périodique', icone: 'revue',
@@ -620,6 +628,7 @@ const SOUS_SECTIONS = {
     { href: '/admin/sites', libelle: 'Sites' },
     { href: '/admin/utilisateurs', libelle: 'Comptes et référents' },
     { href: '/admin/routage', libelle: 'Notifications' },
+    { href: '/admin/api', libelle: 'API' },
   ],
 };
 
@@ -633,12 +642,14 @@ export function sectionCourante(chemin, vue = '') {
   if (chemin.startsWith('/habilitations') || chemin.startsWith('/packs')) return 'registre';
   if (chemin === '/mes-demandes') return 'miennes';
   if (chemin === '/depart') return 'depart';
+  if (chemin.startsWith('/departs')) return 'departs';
+  if (chemin.startsWith('/approbations')) return 'approbations';
   if (chemin.startsWith('/recherche')) return 'agents';
   return '';
 }
 
 function navigation(role, section, compteurs = {}) {
-  return SECTIONS.filter((s) => (!s.droit || peut(role, s.droit)) && (!s.visible || s.visible(role, compteurs)))
+  return SECTIONS.filter((s) => (!s.droit || peut(role, s.droit)) && (!s.visible || s.visible(role, compteurs, section)))
     .map((s) => {
       const n = s.compteur ? compteurs[s.compteur] : null;
       const badge = n ? `<span class="n">${n}</span>` : '';
@@ -695,6 +706,7 @@ ${liensTete()}
       ${nouvelle}
       <div class="qui"><b>${echap(u?.nom ?? '')}</b><span>${LIBELLES_ROLE[role] ?? ''}</span></div>
       <span class="pastille" aria-hidden="true">${echap(initiales(u?.nom))}</span>
+      ${peut(role, 'habilitation:valider') ? `<a class="aide-lien" href="/absences"${req.path === '/absences' ? ' aria-current="page"' : ''}>Absences</a>` : ''}
       <a class="aide-lien" href="/aide"${req.path === '/aide' ? ' aria-current="page"' : ''}>Aide</a>
       <a class="sortie" href="/deconnexion">Déconnexion</a>
     </div>
@@ -788,6 +800,8 @@ export const LIB_ACTION = {
   'habilitation:refuser': 'a refusé la demande',
   'habilitation:assigner': 'a confié la demande',
   'habilitation:profil': 'a précisé le profil demandé',
+  'habilitation:echeance': 'a modifié la date de fin de l’accès',
+  'entretien:echeances': 'a demandé la fermeture des accès temporaires échus',
   'habilitation:desassigner': 'a rendu la demande à la file',
   'retrait:demander': 'a demandé la fermeture de l’accès',
   'retrait:refuser': 'a refusé la fermeture',
@@ -830,6 +844,19 @@ export const LIB_ACTION = {
   'parametre:maj': 'a modifié un paramètre',
   'sauvegarde:creee': 'a créé une sauvegarde',
   'import:applications': 'a importé des applications',
+  'depart:detecter': 'a recherché les départs non signalés',
+  'depart:confirmer': 'a confirmé un départ détecté',
+  'depart:ecarter': 'a écarté un départ détecté',
+  'accord:donner': 'a donné son accord de cadre',
+  'accord:refuser': 'a refusé son accord de cadre',
+  'accord:hors-outil': "a enregistré l'accord du cadre obtenu hors de l'outil",
+  'uf:responsables': "a désigné les responsables d'une UF",
+  'suppleance:creer': 'a organisé une suppléance',
+  'suppleance:supprimer': 'a annulé une suppléance',
+  'api:jeton-creer': "a créé un jeton d'API",
+  'api:jeton-revoquer': "a révoqué un jeton d'API",
+  'conservation:purger': 'a appliqué les durées de conservation',
+  'application:accord-cadre': "a changé l'exigence d'accord du cadre",
   'import:ufs': 'a importé des unités fonctionnelles',
   'auth:succes': "s'est connecté",
   'auth:echec': 'a échoué à se connecter',

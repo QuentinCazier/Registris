@@ -12,7 +12,7 @@ import { getRoutage } from '../parametres.js';
 import { ajouterPreuve, valider as validerPiece, EXTENSIONS_ACCEPTEES } from '../preuves.js';
 import { notifier } from '../mailer.js';
 import {
-  echap, jsonInline, ICONES, page, pageErreur, tag, logoApp, item, bandeauOk, bandeauAlerte, pluriel,
+  echap, jsonInline, ICONES, page, pageErreur, logoApp, item, bandeauOk, bandeauAlerte, pluriel,
   dateFr, etapeLisible,
 } from '../ui.js';
 import { upload, nombre } from './outils.js';
@@ -171,6 +171,9 @@ export function monter(app, { verifierCsrf }) {
       <div><label for="uf_libre">${ufs.length ? 'Service absent de la liste' : 'Service'} <span class="opt">(facultatif)</span></label><input id="uf_libre" name="uf_libre" maxlength="200" placeholder="ex. 1101, Urgences"></div>
       <div>${sites ? `<label for="siteId">Site</label><select id="siteId" name="siteId"><option value="">Non précisé</option>${sites}</select>` : ''}</div>
     </div>
+    <label for="date_fin">Accès temporaire jusqu'au <span class="opt">(stagiaire, intérim, remplacement : laisser vide sinon)</span></label>
+    <input id="date_fin" name="date_fin" type="date" min="${new Date().toISOString().slice(0, 10)}" aria-describedby="date-fin-aide" style="max-width:220px">
+    <div id="date-fin-aide" class="champ-aide">À cette date, la fermeture de l'accès est demandée automatiquement au référent.</div>
     <label for="commentaire">Motif, contexte <span class="opt">(facultatif)</span></label>
     <textarea id="commentaire" name="commentaire" maxlength="2000" placeholder="Prise de poste, remplacement, changement de service…"></textarea>
     <details class="facultatif">
@@ -271,6 +274,7 @@ export function monter(app, { verifierCsrf }) {
         siteId: nombre(b.siteId) || null,
         demandeur: `${u.matricule ? `${u.matricule} ` : ''}${u.nom}`.trim(),
         commentaire: b.commentaire,
+        dateFin: b.date_fin,
         pourAutrui,
       });
     } catch (e) {
@@ -365,6 +369,7 @@ export function monter(app, { verifierCsrf }) {
         siteId: nombre(b.siteId) || null,
         demandeur: `${u.matricule ? u.matricule + ' ' : ''}${u.nom}`.trim(),
         commentaire: b.commentaire,
+        dateFin: b.date_fin,
         pourAutrui,
       });
     } catch (e) {

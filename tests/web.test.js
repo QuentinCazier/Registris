@@ -336,7 +336,7 @@ test('export CSV : point-virgule, BOM, filtres respectés, export tracé', async
   const octets = new Uint8Array(await r.arrayBuffer());
   assert.deepEqual([...octets.slice(0, 3)], [0xef, 0xbb, 0xbf], 'BOM, pour qu’Excel ouvre le fichier sans étape d’import');
   assert.notDeepEqual([...octets.slice(3, 6)], [0xef, 0xbb, 0xbf], 'un seul BOM, sinon la première cellule le contient');
-  const csv = new TextDecoder().decode(octets).replace(/^﻿/, '');
+  const csv = new TextDecoder().decode(octets).replace(/^\ufeff/, '');
   assert.ok(csv.endsWith('\r\n') && !csv.endsWith('\r\n\r\n'), 'une seule fin de ligne finale');
   const lignes = csv.trim().split('\r\n');
   assert.match(lignes[0], /^id;matricule;nom;prenom;application_code;application;profil;ufs;site;statut;/);
@@ -400,7 +400,7 @@ test('revue périodique : ouverture par l’administration, décision par le ré
   assert.deepEqual([...brut.slice(0, 3)], [0xef, 0xbb, 0xbf]);
   assert.notDeepEqual([...brut.slice(3, 6)], [0xef, 0xbb, 0xbf], 'un seul BOM');
   assert.equal(rapport.status, 200);
-  const lignes = (await rapport.text()).replace(/^﻿/, '').trim().split('\r\n');
+  const lignes = (await rapport.text()).replace(/^\ufeff/, '').trim().split('\r\n');
   assert.match(lignes[0], /^campagne;habilitation;matricule;/);
   assert.ok(lignes.some((l) => l.includes('maintenu')), 'la décision figure au rapport');
   // Chaque ligne porte un état explicite : le « non revu » est un constat, pas un vide.
@@ -521,7 +521,7 @@ test('export CSV : un libellé piégé ne devient pas une formule chez l’audit
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
   });
 
-  const csv = (await (await c.go('/suivi.csv')).text()).replace(/^﻿/, '');
+  const csv = (await (await c.go('/suivi.csv')).text()).replace(/^\ufeff/, '');
   // Les guillemets du libellé sont doublés par l'échappement : on cherche donc
   // sa partie stable, et la présence du profil piégé.
   assert.match(csv, /HYPERLINK/, 'la valeur hostile est bien exportée, désamorcée');

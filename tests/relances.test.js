@@ -14,7 +14,7 @@ const H = await import('../src/habilitations.js');
 const A = await import('../src/administration.js');
 const R = await import('../src/relances.js');
 const { setRoutage } = await import('../src/parametres.js');
-const { historique, journal } = await import('../src/audit.js');
+const { journal } = await import('../src/audit.js');
 
 initialiserSchema();
 const cat = A.creerCategorie('test', { libelle: 'Gestion' });

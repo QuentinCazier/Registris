@@ -13,6 +13,16 @@ export const LIB_STATUT = {
 };
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
+const estDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) && !Number.isNaN(Date.parse(String(v)));
+
+// Date de fin d'un accès temporaire : vide, ou une date à venir.
+export function dateFinValide(v) {
+  const d = String(v ?? '').trim();
+  if (!d) return null;
+  if (!estDate(d)) throw new Error('Date de fin attendue au format AAAA-MM-JJ.');
+  if (d < aujourdhui()) throw new Error('La date de fin est déjà passée.');
+  return d;
+}
 
 // --- Catalogue ---------------------------------------------------------------
 
@@ -150,6 +160,7 @@ export const TRIS = {
   role: 'h.role',
   demande: 'h.date_demande',
   realisation: 'h.date_realisation',
+  fin: 'h.date_fin',
   statut: 'h.statut',
   preuves: 'nb_preuves',
 };
@@ -160,11 +171,16 @@ export const CONDITION_FILE = `(h.statut IN ('demandee','validee')
 
 function filtres({
   statut = '', statuts = [], applicationId = 0, applicationIds = null, q = '', sansPreuve = false,
-  file = false, assigneA = '', nonAssignees = false, retraitDemande = false,
+  file = false, assigneA = '', nonAssignees = false, retraitDemande = false, finAvant = '', temporaires = false,
 }) {
   const cond = [];
   const args = [];
   if (file) cond.push(CONDITION_FILE);
+  if (temporaires) cond.push("h.date_fin IS NOT NULL AND h.statut IN ('demandee', 'validee', 'executee')");
+  if (finAvant && estDate(finAvant)) {
+    cond.push("h.date_fin IS NOT NULL AND h.date_fin <= ? AND h.statut IN ('demandee', 'validee', 'executee')");
+    args.push(finAvant);
+  }
   if (Array.isArray(applicationIds)) {
     if (!applicationIds.length) cond.push('0');
     else {
@@ -207,15 +223,30 @@ function filtres({
 // Filtre, tri et pagination en base : un registre d'établissement est volumineux.
 export function listerHabilitations({
   statut = '', statuts = [], applicationId = 0, applicationIds = null, q = '', sansPreuve = false,
-  file = false, assigneA = '', nonAssignees = false, retraitDemande = false,
+  file = false, assigneA = '', nonAssignees = false, retraitDemande = false, finAvant = '', temporaires = false,
   tri = '', sens = 'desc', limite = 500, offset = 0,
 } = {}) {
   const { where, args } = filtres({
-    statut, statuts, applicationId, applicationIds, q, sansPreuve, file, assigneA, nonAssignees, retraitDemande,
+    statut, statuts, applicationId, applicationIds, q, sansPreuve, file, assigneA, nonAssignees, retraitDemande, finAvant, temporaires,
   });
   const colonne = TRIS[tri] ?? 'h.cree_le';
   const ordre = String(sens).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
-  return ouvrirDb()
+  const db = ouvrirDb();
+  // D'abord les identifiants de la page, sur les seules colonnes utiles au tri et au filtre ;
+  // ensuite le détail de ces lignes. Le compte des pièces n'est calculé que pour elles.
+  const tri_ = colonne === 'nb_preuves' ? '(SELECT COUNT(*) FROM preuves p WHERE p.habilitation_id = h.id)' : colonne;
+  const ids = db
+    .prepare(
+      `SELECT h.id FROM habilitations h
+         JOIN applications a ON a.id = h.application_id
+         JOIN agents ag ON ag.id = h.agent_id
+        ${where}
+        ORDER BY ${tri_} ${ordre}, h.id DESC LIMIT ? OFFSET ?`,
+    )
+    .all(...args, limite, offset)
+    .map((r) => r.id);
+  if (!ids.length) return [];
+  const lignes = db
     .prepare(
       `SELECT h.*, a.code AS app_code, a.libelle AS app_libelle,
               ag.matricule, ag.nom, ag.prenom,
@@ -223,10 +254,11 @@ export function listerHabilitations({
          FROM habilitations h
          JOIN applications a ON a.id = h.application_id
          JOIN agents ag ON ag.id = h.agent_id
-        ${where}
-        ORDER BY ${colonne} ${ordre}, h.id DESC LIMIT ? OFFSET ?`,
+        WHERE h.id IN (SELECT value FROM json_each(?))`,
     )
-    .all(...args, limite, offset);
+    .all(JSON.stringify(ids));
+  const rang = new Map(ids.map((id, i) => [id, i]));
+  return lignes.sort((x, y) => rang.get(x.id) - rang.get(y.id));
 }
 
 // Mêmes lignes, enrichies des UF et du site : l'export doit valoir la fiche.
@@ -250,14 +282,11 @@ export function exporterHabilitations(criteres = {}) {
 
 export function compterHabilitations(criteres = {}) {
   const { where, args } = filtres(criteres);
-  return ouvrirDb()
-    .prepare(
-      `SELECT COUNT(*) n FROM habilitations h
-         JOIN applications a ON a.id = h.application_id
-         JOIN agents ag ON ag.id = h.agent_id
-        ${where}`,
-    )
-    .get(...args).n;
+  // Les jointures ne servent qu'à la recherche en texte libre.
+  const jointures = String(criteres.q ?? '').trim()
+    ? 'JOIN applications a ON a.id = h.application_id JOIN agents ag ON ag.id = h.agent_id'
+    : '';
+  return ouvrirDb().prepare(`SELECT COUNT(*) n FROM habilitations h ${jointures} ${where}`).get(...args).n;
 }
 
 export function listerDemandesDe(login) {
@@ -347,6 +376,7 @@ export function creerHabilitation(acteur, donnees) {
   if (application.actif === 0) throw new Error('Cette application est désactivée au catalogue.');
   const role = String(donnees.role ?? '').trim();
   if (!role) throw new Error('Le profil / droit demandé est requis.');
+  const dateFin = dateFinValide(donnees.dateFin);
 
   const id = transaction(() => {
     const agent = trouverOuCreerAgent(donnees.agent);
@@ -354,8 +384,8 @@ export function creerHabilitation(acteur, donnees) {
       .prepare(
         `INSERT INTO habilitations
            (agent_id, application_id, role, statut, demandeur, cree_par, pour_autrui,
-            site_id, uf_libre, commentaire, date_demande)
-         VALUES (?, ?, ?, 'demandee', ?, ?, ?, ?, ?, ?, ?)`,
+            site_id, uf_libre, commentaire, date_demande, date_fin)
+         VALUES (?, ?, ?, 'demandee', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         agent.id,
@@ -368,6 +398,7 @@ export function creerHabilitation(acteur, donnees) {
         donnees.ufLibre ? String(donnees.ufLibre).trim() : null,
         donnees.commentaire ? String(donnees.commentaire).trim() : null,
         donnees.dateDemande ?? aujourdhui(),
+        dateFin,
       );
     const nouvelId = Number(info.lastInsertRowid);
     const lien = db.prepare('INSERT OR IGNORE INTO habilitation_ufs (habilitation_id, uf_id) VALUES (?, ?)');
@@ -385,7 +416,25 @@ export function creerHabilitation(acteur, donnees) {
       demandeur: donnees.demandeur ?? acteur,
     },
   });
+  if (application.accord_cadre) initialiserAccord(id, acteur);
   return habilitationParId(id);
+}
+
+// Accord du cadre exigé : en attente, sauf si le demandeur est lui-même responsable d'une UF de la demande.
+function initialiserAccord(id, acteur) {
+  const db = ouvrirDb();
+  const cadre = db
+    .prepare(
+      `SELECT 1 FROM habilitation_ufs hu JOIN uf_responsables r ON r.uf_id = hu.uf_id
+        WHERE hu.habilitation_id = ? AND r.login = ? COLLATE NOCASE`,
+    )
+    .get(id, String(acteur));
+  if (cadre) {
+    db.prepare("UPDATE habilitations SET accord_cadre = 'accorde', accord_par = ?, accord_le = datetime('now') WHERE id = ?").run(acteur, id);
+    tracer(acteur, 'accord:donner', { entite: 'habilitation', entiteId: id, details: { implicite: "demandeur responsable de l'UF" } });
+  } else {
+    db.prepare("UPDATE habilitations SET accord_cadre = 'attente' WHERE id = ?").run(id);
+  }
 }
 
 // Une demande par élément du pack, pour un même agent.
@@ -415,6 +464,10 @@ export function appliquerPack(acteur, pack, donnees) {
 }
 
 // Une demande pour plusieurs applications : N habilitations, un référent chacune. lignes = [{ applicationId, role }].
+/**
+ * @param {string} acteur
+ * @param {{ lignes?: Array<{ applicationId: number, role: string }>, [champ: string]: any }} [demande]
+ */
 export function creerDemandeMultiple(acteur, { lignes = [], ...commun } = {}) {
   const retenues = lignes
     .map((l) => ({ applicationId: Number(l.applicationId), role: String(l.role ?? '').trim() }))
@@ -429,6 +482,10 @@ export function creerDemandeMultiple(acteur, { lignes = [], ...commun } = {}) {
 }
 
 // Départ d'un agent : une demande de fermeture sur chacun de ses accès ouverts.
+/**
+ * @param {string} acteur
+ * @param {{ matricule?: string, motif?: string, demandeur?: string, applicationIds?: number[] | null }} [depart]
+ */
 export function signalerDepart(acteur, { matricule, motif = '', demandeur = '', applicationIds = null } = {}) {
   const agent = agentParMatricule(matricule);
   if (!agent) throw new Error('Aucun agent de ce matricule au registre.');
@@ -485,6 +542,9 @@ export function changerStatut(acteur, id, action, { motif = '' } = {}) {
   if (['valider', 'executer'].includes(action) && h.role === PROFIL_A_PRECISER) {
     throw new Error("Précisez d'abord le profil : l'agent ne le connaissait pas.");
   }
+  if (['valider', 'executer'].includes(action) && h.accord_cadre === 'attente') {
+    throw new Error("Cette demande attend l'accord du cadre de l'UF.");
+  }
 
   const marqueurs = t.de.map(() => '?').join(', ');
   const r = db
@@ -525,6 +585,45 @@ export function modifierProfil(acteur, id, role) {
   db.prepare("UPDATE habilitations SET role = ?, maj_le = datetime('now') WHERE id = ?").run(r, Number(id));
   tracer(acteur, 'habilitation:profil', { entite: 'habilitation', entiteId: Number(id), details: { de: h.role, vers: r } });
   return habilitationParId(id);
+}
+
+// Fixer, déplacer ou retirer la date de fin d'un accès.
+export function modifierEcheance(acteur, id, date) {
+  const d = dateFinValide(date);
+  const db = ouvrirDb();
+  const h = db.prepare('SELECT * FROM habilitations WHERE id = ?').get(Number(id));
+  if (!h) throw new Error('Habilitation introuvable.');
+  if (!['demandee', 'validee', 'executee'].includes(h.statut)) throw new Error('Cet accès est déjà clos.');
+  if ((h.date_fin ?? null) === d) return habilitationParId(id);
+  db.prepare("UPDATE habilitations SET date_fin = ?, maj_le = datetime('now') WHERE id = ?").run(d, Number(id));
+  tracer(acteur, 'habilitation:echeance', { entite: 'habilitation', entiteId: Number(id), details: { de: h.date_fin ?? null, vers: d } });
+  return habilitationParId(id);
+}
+
+// Accès ouverts arrivés à leur date de fin : une demande de fermeture chacun, une seule fois.
+export function accesEchus({ jour = aujourdhui() } = {}) {
+  return ouvrirDb()
+    .prepare(
+      `SELECT h.id FROM habilitations h
+        WHERE h.statut = 'executee' AND h.retrait_demande_le IS NULL AND h.date_fin IS NOT NULL AND h.date_fin <= ?
+        ORDER BY h.date_fin, h.id`,
+    )
+    .all(jour)
+    .map((r) => r.id);
+}
+
+export function demanderFermeturesEchues(acteur = 'système', { jour = aujourdhui() } = {}) {
+  const traites = [];
+  for (const id of accesEchus({ jour })) {
+    const h = habilitationParId(id);
+    const fin = h.date_fin.split('-').reverse().join('/');
+    try {
+      traites.push(demanderRetrait(acteur, id, { motif: `Fin de l'accès temporaire, prévue le ${fin}.`, demandeur: 'Registris (échéance)' }));
+    } catch {
+      // Demandée entre-temps par quelqu'un d'autre.
+    }
+  }
+  return traites;
 }
 
 // Une file partagée sans nom dessus n'est traitée par personne.

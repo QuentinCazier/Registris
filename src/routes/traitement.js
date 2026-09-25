@@ -12,7 +12,7 @@ import {
   echap, ICONES, page, tag, item, bandeauAlerte, libelleAction, pluriel, depuis, joursDepuis, dateFr,
 } from '../ui.js';
 import { nombre, perimetreRevue } from './outils.js';
-import { formulaireProfil } from './habilitation.js';
+import { formulaireProfil, blocAccord } from './habilitation.js';
 
 export function monter(app) {
   // Tout reste rendu côté serveur : chaque demande de la file a sa propre adresse.
@@ -42,7 +42,7 @@ export function monter(app) {
         <div class="l1"><span class="qui">${echap(benef)}</span><span class="mat">${echap(h.matricule)}</span>
           <span class="no">n° ${h.id}</span></div>
         <div class="l2">${echap(h.app_libelle)}, ${echap(h.role)}</div>
-        <div class="l3">${fermeture ? '<span class="puce p-fermeture">fermeture demandée</span>' : tag(h.statut)}
+        <div class="l3">${fermeture ? '<span class="puce p-fermeture">fermeture demandée</span>' : h.accord_cadre === 'attente' ? '<span class="puce p-attente">accord du cadre attendu</span>' : tag(h.statut)}
           ${manque ? '<span class="puce p-attente">sans pièce</span>' : ''}
           ${retard ? `<span class="puce p-anomalie">en retard${h.relances ? `, relancé ${pluriel(h.relances, 'fois', '')}` : ''}</span>` : ''}
           ${h.assigne_a ? `<span class="a-qui">${echap(h.assigne_a === u.login ? 'à moi' : nomDe(h.assigne_a))}</span>` : ''}
@@ -77,7 +77,8 @@ export function monter(app) {
            <button class="${classe}">${label}</button></form>` : '');
 
     const fermetureDemandee = Boolean(h.retrait_demande_le);
-    const actions = fermetureDemandee
+    const attenteCadre = h.accord_cadre === 'attente' && h.statut === 'demandee';
+    const actions = fermetureDemandee || attenteCadre
       ? `<a class="btn" href="/habilitations/${h.id}">Fiche complète</a>`
       : [
         h.statut === 'demandee' ? bouton('valider', 'Valider', 'habilitation:valider', 'btn btn-primary') : '',
@@ -168,6 +169,7 @@ export function monter(app) {
                 </div>`
               : ''}
 
+            ${blocAccord(h, `/traiter/${h.id}`, { peutSaisir: peutAgir('habilitation:valider'), nomDe })}
             ${!fermetureDemandee && peutAgir('habilitation:valider') ? formulaireProfil(h, `/traiter/${h.id}`) : ''}
 
             ${h.preuves.length === 0

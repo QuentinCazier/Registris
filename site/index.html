@@ -157,15 +157,18 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
       <li>Installateur sans accès à internet</li>
     </ul>
     <figure class="capture bloc">
-      <img src="captures/accueil.png" alt="Tableau de bord de Registris : chaîne d'audit intègre, file des demandes à traiter, accès actifs par application, points de vigilance et dernières écritures" width="1440" height="1000">
-      <figcaption>Le tableau de bord : le travail qui attend, l'état de la chaîne d'audit et les points de vigilance, pas des compteurs décoratifs.</figcaption>
+      <img src="captures/accueil.png" alt="Tableau de bord de Registris : journal d'audit vérifié, file des demandes à traiter avec le bouton de l'action attendue, points de vigilance et activité récente nommant les personnes" width="1440" height="1000">
+      <figcaption>Le tableau de bord : le travail qui attend, avec le bon bouton sur chaque ligne, et seulement les alertes qui demandent une action.</figcaption>
     </figure>
   </section>
 
   <section id="fonctions" aria-labelledby="t-fonctions">
     <h2 id="t-fonctions">Ce que fait l'outil</h2>
     <div class="fonctions">
-      <div><h3>Demandes tracées</h3><p>Catalogue d'applications, demande pour soi ou pour un collègue, demande multiple, packs « nouvel arrivant », pièce jointe dans le même geste.</p></div>
+      <div><h3>Demandes simples</h3><p>On coche les applications au catalogue, on choisit le profil dans une liste ou on répond « je ne sais pas », on retrouve un collègue par son nom. Une seule saisie pour plusieurs accès.</p></div>
+      <div><h3>Accès temporaires</h3><p>Stagiaires, intérimaires, remplaçants : une date de fin sur la demande, et la fermeture est demandée d'elle-même au référent à l'échéance.</p></div>
+      <div><h3>Départs détectés</h3><p>Chaque jour, les comptes désactivés dans l'Active Directory ; à la demande, un fichier RH. Les agents partis qui gardent des accès sont signalés, un référent confirme.</p></div>
+      <div><h3>Accord du cadre, suppléance</h3><p>Pour les applications qui l'exigent, le cadre de l'UF donne son accord avant le référent. Pendant un congé, un suppléant reçoit le périmètre du référent absent.</p></div>
       <div><h3>Cycle de vie opposable</h3><p>Demandée, validée, exécutée, révoquée, refusée. Chaque transition porte une date et un acteur ; les référents n'agissent que sur leurs applications.</p></div>
       <div><h3>Coffre à preuves</h3><p>Courriels (.msg, .eml), captures, PDF. Chaque pièce est empreintée en SHA-256 au dépôt ; son intégrité se vérifie à tout moment.</p></div>
       <div><h3>Boîte de traitement</h3><p>La file à gauche, le dossier complet à droite. On valide, on exécute, on refuse, on joint les pièces sans changer de page, et le manque de preuve est signalé avant le bouton.</p></div>
@@ -175,14 +178,19 @@ footer .in{max-width:1100px;margin:0 auto;padding:18px 22px;font-size:13px;color
       <div><h3>Indicateurs de délai</h3><p>Du dépôt à l'ouverture, du signalement à la fermeture réelle, par application, en médiane et « neuf sur dix en moins de », avec les volumes mensuels.</p></div>
       <div><h3>Dossier de preuves</h3><p>On colle les matricules échantillonnés, on obtient un ZIP horodaté : synthèse imprimable, tableau CSV, manifeste des empreintes, pièces classées par matricule.</p></div>
       <div><h3>Journal chaîné et ancré</h3><p>Chaque écriture scelle la précédente par son empreinte ; la tête de chaîne est déposée chaque jour hors de la base. Une retouche ou un remplacement de la base se voit.</p></div>
+      <div><h3>API en lecture, RGPD</h3><p>GLPI ou la supervision lisent la file avec un jeton révocable. Au terme de la durée de conservation, l'identité des agents partis est effacée ; la fiche du registre des traitements est fournie.</p></div>
     </div>
   </section>
 
   <section aria-labelledby="t-ecrans">
-    <h2 id="t-ecrans">Deux écrans de travail</h2>
+    <h2 id="t-ecrans">Les écrans de travail</h2>
+    <figure class="capture bloc">
+      <img src="captures/demande.png" alt="Nouvelle demande dans Registris : recherche d'application, onglets de catégories, cartes cochées et barre Continuer qui nomme les applications choisies" width="1440" height="900" loading="lazy">
+      <figcaption>La demande : on coche les applications, la barre du bas les nomme, un seul bouton pour continuer.</figcaption>
+    </figure>
     <div class="deux">
       <figure class="capture bloc" style="margin:0">
-        <img src="captures/traitement.png" alt="Boîte de traitement de Registris : file des demandes à gauche, dossier de la demande sélectionnée à droite avec ses pièces et ses écritures" width="1440" height="900" loading="lazy">
+        <img src="captures/traitement.png" alt="Boîte de traitement de Registris : file des demandes à gauche, dossier de la demande sélectionnée à droite avec la prise en charge, les actions et le profil demandé" width="1440" height="900" loading="lazy">
         <figcaption>La boîte de traitement : la file des demandes, le dossier et les actions.</figcaption>
       </figure>
       <figure class="capture bloc" style="margin:0">
@@ -299,7 +307,25 @@ npm start      <span class="c"># http://127.0.0.1:3000</span></pre>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/SECURITY.md">Sécurité</a><span>mesures en place, choix assumés, revue de la version, signalement d'une faille.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/releases">Releases</a><span>archives à télécharger, sommes SHA-256, nomenclature logicielle, notes de version.</span></li>
         <li><a href="https://github.com/QuentinCazier/Registris/blob/main/CHANGELOG.md">Journal des versions</a><span>ce qui change d'une version à l'autre.</span></li>
+        <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/API.md">API en lecture</a><span>jetons, points d'accès, exemples pour GLPI et la supervision.</span></li>
+        <li><a href="https://github.com/QuentinCazier/Registris/blob/main/docs/RGPD.md">Protection des données</a><span>fiche du registre des traitements, durées de conservation, purge.</span></li>
       </ul>
+    </div>
+  </section>
+
+  <section id="signature" aria-labelledby="t-signature">
+    <h2 id="t-signature">Politique de signature du code</h2>
+    <div class="bloc" style="padding:18px 20px">
+      <p><b>Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</b>
+        Signature gratuite du code fournie par SignPath.io, certificat délivré par la SignPath Foundation.</p>
+      <p>Seul l'installateur Windows est signé. Il est construit par l'intégration continue de GitHub à partir du code de ce dépôt public,
+        sans intervention manuelle, puis installé, mis à jour et désinstallé sur un serveur Windows avant chaque publication.
+        Chaque signature est approuvée à la main pour une version précise.</p>
+      <p>Rôles de l'équipe : Quentin Cazier est à la fois auteur des modifications, relecteur et approbateur des signatures.
+        L'authentification à deux facteurs est exigée pour le dépôt GitHub et pour SignPath.</p>
+      <p>Confidentialité : Registris ne transmet aucune donnée hors du serveur de l'établissement qui l'installe. Il n'appelle aucun service extérieur,
+        ne contient aucune télémétrie et n'envoie de courriel que par le relais SMTP que l'établissement configure lui-même.
+        L'installateur se désinstalle depuis « Programmes et fonctionnalités ».</p>
     </div>
   </section>
 </main>

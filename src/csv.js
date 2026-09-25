@@ -11,4 +11,4 @@ export function champCsv(valeur) {
 export const ligneCsv = (cellules) => cellules.map(champCsv).join(';');
 
 // BOM et CRLF : Excel ouvre alors le fichier sans étape d'import.
-export const fichierCsv = (lignes) => `﻿${lignes.map(ligneCsv).join('\r\n')}\r\n`;
+export const fichierCsv = (lignes) => `\ufeff${lignes.map(ligneCsv).join('\r\n')}\r\n`;

@@ -2,6 +2,36 @@
 
 ## Non publié
 
+- Accès temporaires : une date de fin sur la demande ; à l'échéance, la
+  fermeture est demandée d'elle-même au référent. Onglet « Temporaires » au
+  registre, alerte sept jours avant sur le tableau de bord, date modifiable et
+  tracée dans la fiche.
+- Départs détectés : les comptes désactivés dans l'Active Directory, chaque
+  jour, et un fichier RH des sorties ou des présents, à la demande. Chaque
+  détection attend qu'un référent la confirme, ce qui demande la fermeture de
+  tous les accès de l'agent, ou l'écarte avec un motif. Un fichier des présents
+  qui ferait sortir plus de la moitié des agents est refusé.
+- Accord du cadre, en option par application : le responsable de l'UF donne son
+  accord avant que le référent ne puisse valider. Page « Accords à donner »,
+  accord d'office quand le cadre dépose lui-même la demande, accord obtenu par
+  courriel enregistrable par le référent. Cadres désignés par UF, à l'écran ou
+  par import.
+- Suppléance : un référent absent confie son périmètre à un autre pour une
+  période ; le suppléant voit les demandes sans se reconnecter, et les relances
+  lui parviennent.
+- API en lecture (`/api/v1`) : file, registre paginé, accès d'un agent,
+  catalogue. Un jeton par outil, révocable, dont seule l'empreinte est gardée.
+  Voir docs/API.md.
+- Conservation : `registris purger` efface l'identité des agents partis et
+  supprime leurs pièces au-delà de `CONSERVATION_ANNEES` ; docs/RGPD.md fournit
+  la fiche du registre des traitements.
+- Entretien horaire assuré par le serveur (`ENTRETIEN_AUTO`), aussi disponible
+  par `registris entretien`.
+- Installateur Windows prêt à être signé par SignPath Foundation dès que le
+  secret est configuré (docs/SIGNATURE.md).
+- Dépendances : Express 5, Nodemailer 10, Archiver 8, ldapts 9.2.
+- Qualité : ESLint et vérification des types (TypeScript sur le JavaScript) en
+  intégration continue, `npm run verifier` en local.
 - Nouvelle demande : les onglets de catégories ne rechargent plus la page. Une
   sélection faite dans un onglet est conservée quand on passe à un autre, ce qui
   permet de demander par exemple GAM et DPI en une seule demande groupée. Chaque

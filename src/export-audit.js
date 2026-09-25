@@ -1,6 +1,6 @@
 // Dossier de preuves ZIP : synthese.html, synthese.csv, integrite.txt et les pièces par matricule.
 
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 
 import { config } from './config.js';
 import { ouvrirDb } from './db.js';
@@ -128,7 +128,7 @@ export function genererDossierZip(acteur, saisie, sortie) {
   const horodatage = new Date().toISOString();
   const chaine = verifierChaine();
 
-  const zip = archiver('zip', { zlib: { level: 9 } });
+  const zip = new ZipArchive({ zlib: { level: 9 } });
   zip.pipe(sortie);
   zip.append(synthese(resultat, horodatage, chaine), { name: 'synthese.html' });
   zip.append(csv(resultat), { name: 'synthese.csv' });

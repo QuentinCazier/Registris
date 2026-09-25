@@ -16,7 +16,8 @@ import { echap, ICONES, page, pageErreur, tagRole, logoApp, bandeauOk, pluriel }
 import { upload, nombre } from './outils.js';
 import { blocMiseEnRoute } from './accueil.js';
 import { importerApplications, importerUfs, MODELE_APPLICATIONS, MODELE_UFS } from '../import.js';
-import { champCsv } from '../csv.js';
+import { fichierCsv } from '../csv.js';
+import { responsablesParUf, definirResponsablesUf } from '../accords.js';
 
 export function monter(app, { verifierCsrf }) {
   const admin = exigerDroit('admin:gerer');
@@ -77,6 +78,8 @@ export function monter(app, { verifierCsrf }) {
           <label for="libelle">Libellé</label><input id="libelle" name="libelle" value="${echap(a.libelle)}" required maxlength="120">
           <label for="categorieId">Catégorie</label><select id="categorieId" name="categorieId"><option value="">Sans catégorie</option>${cats.map((c) => `<option value="${c.id}" ${c.id === a.categorie_id ? 'selected' : ''}>${echap(c.libelle)}</option>`).join('')}</select>
           <label class="radio" style="margin-top:14px"><input type="checkbox" name="actif" value="1" ${a.actif !== 0 ? 'checked' : ''}> Active (proposée au catalogue)</label>
+          <label class="radio" style="margin-top:10px"><input type="checkbox" name="accord_cadre" value="1" ${a.accord_cadre ? 'checked' : ''}> Accord du cadre de l'UF exigé avant le référent</label>
+          <div class="champ-aide">Les cadres se désignent par UF, dans « Unités fonctionnelles ».</div>
           <label for="profils">Profils proposés aux agents <span class="opt">(un par ligne)</span></label>
           <textarea id="profils" name="profils" maxlength="5000" style="min-height:100px">${echap(a.profils ?? '')}</textarea>
           <div class="champ-aide">L'agent les choisit dans une liste. Il peut aussi répondre « je ne sais pas » : le référent choisira.</div>
@@ -98,6 +101,7 @@ export function monter(app, { verifierCsrf }) {
       modifierApplication(acteur(req), nombre(req.params.id), {
         libelle: req.body.libelle, categorieId: req.body.categorieId === '' ? '' : nombre(req.body.categorieId), logo, actif: req.body.actif === '1',
         profils: req.body.profils,
+        accordCadre: req.body.accord_cadre === '1',
       });
     } catch (e) {
       return erreur400(req, res, 'Modification refusée', e, `/admin/applications/${nombre(req.params.id)}/modifier`);
@@ -114,11 +118,10 @@ export function monter(app, { verifierCsrf }) {
   });
 
   // --- Import depuis un tableur ---------------------------------------------------------------
-  const csvModele = (lignes) => `﻿${lignes.map((l) => l.map(champCsv).join(';')).join('\r\n')}\r\n`;
   app.get(['/admin/import/modele-applications.csv', '/admin/import/modele-ufs.csv'], exigerAuth, admin, (req, res) => {
     const quoi = req.path.includes('ufs') ? 'ufs' : 'applications';
     const modele = quoi === 'ufs' ? MODELE_UFS : MODELE_APPLICATIONS;
-    res.type('text/csv; charset=utf-8').attachment(`modele-${quoi}.csv`).send(csvModele(modele));
+    res.type('text/csv; charset=utf-8').attachment(`modele-${quoi}.csv`).send(fichierCsv(modele));
   });
 
   app.get('/admin/import', exigerAuth, admin, (req, res) => {
@@ -139,10 +142,10 @@ export function monter(app, { verifierCsrf }) {
         <div class="deux-col">
           ${bloc('applications', 'Applications, référents et profils',
             "Une ligne par application. Les catégories absentes sont créées. Les référents sont les identifiants de connexion, séparés par des virgules. Les profils aussi.",
-            'Code, Libellé, Catégorie, Référents, Profils')}
+            'Code, Libellé, Catégorie, Référents, Profils, Accord du cadre (oui ou non)')}
           ${bloc('ufs', 'Unités fonctionnelles',
-            "Une ligne par UF, telle qu'elle sort du fichier structure de l'établissement.",
-            'Code, Libellé')}
+            "Une ligne par UF, telle qu'elle sort du fichier structure de l'établissement. La colonne Cadres, facultative, désigne ceux qui donnent leur accord.",
+            'Code, Libellé, Cadres')}
         </div>`),
     );
   });
@@ -208,19 +211,24 @@ export function monter(app, { verifierCsrf }) {
   });
 
   app.get('/admin/ufs', exigerAuth, admin, (req, res) => {
-    const lignes = listerUfs().map((f) => `<tr><td class="mono">${echap(f.code)}</td><td>${echap(f.libelle)}</td>
-        <td><form method="post" action="/admin/ufs/${f.id}/supprimer" data-confirmer="Supprimer cette UF ?"><button class="btn btn-danger btn-petit">Supprimer</button></form></td></tr>`).join('');
+    const responsables = responsablesParUf();
+    const lignes = listerUfs().map((f) => `<tr><td>${echap(f.code)}</td><td>${echap(f.libelle)}</td>
+        <td><form method="post" action="/admin/ufs/${f.id}/responsables" class="ligne-motif">
+          <input name="logins" value="${echap((responsables.get(f.id) ?? []).join(', '))}" maxlength="500" placeholder="identifiants, séparés par des virgules" aria-label="Cadres de l'UF ${echap(f.code)}">
+          <button class="btn btn-petit">Enregistrer</button></form></td>
+        <td><form method="post" action="/admin/ufs/${f.id}/supprimer" data-confirmer="Supprimer cette UF ?"><button class="btn btn-danger btn-petit">Supprimer<span class="sr"> ${echap(f.code)}</span></button></form></td></tr>`).join('');
     res.send(
       page(req, 'Unités fonctionnelles',
         `<div class="deux-col">
           <section style="margin-top:0"><h2>Référentiel des UF</h2>
-            <table><caption>Référentiel des unités fonctionnelles</caption><thead><tr><th scope="col">Code</th><th scope="col">Libellé</th><th scope="col"></th></tr></thead><tbody>${lignes || '<tr><td colspan="3" style="color:var(--encre-3)">Aucune UF. Les demandes peuvent toujours saisir des UF en texte libre.</td></tr>'}</tbody></table></section>
+            <p class="aide">Les cadres d'une UF donnent leur accord aux demandes qui la concernent, pour les applications qui l'exigent.</p>
+            <table><caption>Référentiel des unités fonctionnelles</caption><thead><tr><th scope="col">Code</th><th scope="col">Libellé</th><th scope="col">Cadres qui donnent leur accord</th><th scope="col"><span class="sr">Suppression</span></th></tr></thead><tbody>${lignes || '<tr><td colspan="4" style="color:var(--encre-3)">Aucune UF. Les demandes peuvent toujours saisir des UF en texte libre.</td></tr>'}</tbody></table></section>
           <section style="margin-top:0"><h2>Ajouter une UF</h2>
             <form method="post" action="/admin/ufs" class="carte">
               <label for="code">Code</label><input id="code" name="code" required maxlength="20" placeholder="ex. 1101">
               <label for="libelle">Libellé</label><input id="libelle" name="libelle" required maxlength="120" placeholder="ex. Médecine polyvalente">
               <div class="actions"><button class="btn btn-primary" type="submit">${ICONES.plus}Ajouter</button></div></form>
-            <p class="champ-aide" style="margin-top:12px">Pour un import en masse, utilisez la ligne de commande : <code>registris ufs fichier.csv</code>.</p></section>
+            <p class="champ-aide" style="margin-top:12px">Pour un import en masse, avec les cadres : <a href="/admin/import">importer un tableur</a>.</p></section>
         </div>`),
     );
   });
@@ -229,6 +237,14 @@ export function monter(app, { verifierCsrf }) {
       creerUf(acteur(req), { code: req.body.code, libelle: req.body.libelle });
     } catch (e) {
       return erreur400(req, res, 'UF non créée', e, '/admin/ufs');
+    }
+    res.redirect('/admin/ufs');
+  });
+  app.post('/admin/ufs/:id/responsables', exigerAuth, admin, (req, res) => {
+    try {
+      definirResponsablesUf(acteur(req), nombre(req.params.id), req.body.logins);
+    } catch (e) {
+      return erreur400(req, res, 'Cadres non enregistrés', e, '/admin/ufs');
     }
     res.redirect('/admin/ufs');
   });

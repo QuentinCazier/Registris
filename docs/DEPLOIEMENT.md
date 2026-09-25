@@ -16,6 +16,10 @@ Ce guide détaille chaque réglage, pour les adapter ou les faire à la main.
   service : pas de base de données à installer, pas de compilateur.
 - Le fichier SQLite et le dossier des preuves doivent être sur un **disque local
   de la VM**, jamais sur un partage réseau (risque de corruption).
+- Tenue en charge vérifiée à chaque modification par l'intégration continue
+  (`npm run charge`) : avec 50 000 habilitations, 12 000 agents et 80
+  applications, chaque page répond en moins d'une seconde, la plupart en moins
+  de 200 ms, et l'export complet du registre en moins de cinq secondes.
 
 ```bash
 git clone https://github.com/QuentinCazier/Registris.git
@@ -336,7 +340,14 @@ compte.
 | chaque jour | `registris ancrer` | déposer la tête de chaîne hors de la base |
 | chaque jour | `registris verifier` | contrôle complet de la chaîne, des ancrages et du coffre |
 | chaque jour ouvré | `registris relancer` | ne rien laisser dormir dans la file |
+| chaque mois | `registris purger` | appliquer les durées de conservation, voir [RGPD.md](RGPD.md) |
 | chaque trimestre | rapprochement de chaque application sensible, depuis l'écran | prouver que le registre dit vrai |
+
+Le serveur fait lui-même, toutes les heures, l'entretien courant : il demande la
+fermeture des accès temporaires arrivés à échéance et, une fois par jour quand un
+compte de service LDAP est configuré, signale les agents dont le compte est
+désactivé dans l'annuaire. `ENTRETIEN_AUTO=non` confie ce travail à une tâche
+planifiée qui lance `registris entretien`.
 
 `registris verifier` n'est pas seulement un contrôle : il enregistre un point de
 reprise. Les écrans repartent de là au lieu de recalculer tout le journal, ce
@@ -362,12 +373,15 @@ Le schéma de base se met à jour tout seul au démarrage (migrations additives)
   avec l'adresse IP d'origine (correcte si `TRUST_PROXY=true` derrière le proxy).
 - Les sessions sont conservées dans la base : un redémarrage du service ne
   déconnecte personne, et les sessions expirées sont purgées chaque heure.
+- L'API en lecture (`/api/v1`, jeton par outil) donne la file et les accès d'un
+  agent à GLPI ou à la supervision : [API.md](API.md).
 
 ## 10. Protection des données
 
 L'outil traite des données à caractère personnel d'agents (matricule, nom,
 courriel professionnel, habilitations). À inscrire au registre des traitements
-avec le DPO. Aucune donnée patient n'est traitée. Les pièces de preuve peuvent
+avec le DPO : [RGPD.md](RGPD.md) fournit la fiche, les durées de conservation et
+la purge. Aucune donnée patient n'est traitée. Les pièces de preuve peuvent
 contenir des courriels : sensibilisez les utilisateurs à ne joindre que les
 pièces utiles à la preuve de l'habilitation.
 

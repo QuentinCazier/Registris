@@ -41,7 +41,8 @@ HTTPS derrière un reverse-proxy). Il installe ensuite l'application, Node.js,
 le service Windows et ouvre le port, puis propose d'ouvrir Registris dans le
 navigateur.
 
-L'installateur n'est pas signé par un certificat d'éditeur : Windows SmartScreen
+Tant que l'installateur n'est pas signé par un certificat d'éditeur (voir
+[SIGNATURE.md](SIGNATURE.md)), Windows SmartScreen
 affiche « Windows a protégé votre ordinateur » au premier lancement. Cliquez sur
 « Informations complémentaires » puis « Exécuter quand même », après avoir
 comparé la somme SHA-256 à celle publiée avec la release. Le programme figure

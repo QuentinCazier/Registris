@@ -8,7 +8,8 @@ import {
   ouvrirCampagne, listerCampagnes, campagneParId, avancementParApplication, lignesCampagne, decider,
   cloturer, synthese, resteAStatuer,
 } from '../revues.js';
-import { echap, ICONES, page, pageErreur, pluriel } from '../ui.js';
+import { echap, ICONES, page, pageErreur, pluriel, dateFr } from '../ui.js';
+import { nomsActeurs } from '../administration.js';
 import { cheminSur, nombre, perimetreRevue } from './outils.js';
 
 export function monter(app) {
@@ -51,13 +52,13 @@ export function monter(app) {
       <td class="num">${c.id}</td>
       <td><a href="/revues/${c.id}">${echap(c.libelle)}</a>
         <span class="sous">${c.perimetre_libelle ? echap(c.perimetre_libelle) : 'toutes les applications'}</span></td>
-      <td class="num">${echap(String(c.ouverte_le ?? '').slice(0, 10))}</td>
-      <td class="num">${echap(c.echeance ?? '')}</td>
+      <td class="num">${echap(dateFr(c.ouverte_le))}</td>
+      <td class="num">${echap(dateFr(c.echeance))}</td>
       <td>${c.cloturee_le
         ? `<span class="tag t-revoquee">Clôturée</span>`
         : `<span class="tag t-validee">En cours</span>`}</td>
       <td style="min-width:190px">${barreAvancement(c.decidees, c.total)}
-        <span class="mono" style="font-size:11.5px;color:var(--encre-3)">${c.decidees} sur ${c.total}</span></td>
+        <span style="font-size:12px;color:var(--encre-3)">${c.decidees} sur ${c.total}</span></td>
       <td class="num">${c.retirees}</td>
       <td class="acts"><a class="btn btn-petit" href="/revues/${c.id}">Ouvrir</a></td>
     </tr>`).join('');
@@ -67,7 +68,7 @@ export function monter(app) {
         `${ouverte && maPart
           ? `<div class="bandeau b-warn">${ICONES.revue}
               <div><div class="t">${pluriel(maPart, 'accès', '')} ${maPart >= 2 ? 'restent' : 'reste'} à revoir dans votre périmètre</div>
-                <div class="d">Campagne « ${echap(ouverte.libelle)} »${ouverte.echeance ? `, échéance du ${echap(ouverte.echeance)}` : ''}.</div></div>
+                <div class="d">Campagne « ${echap(ouverte.libelle)} »${ouverte.echeance ? `, à finir avant le ${echap(dateFr(ouverte.echeance))}` : ''}.</div></div>
               <a class="r btn btn-primary" href="/revues/${ouverte.id}">Traiter ma part</a></div>`
           : ''}
         ${formulaire}
@@ -103,6 +104,7 @@ export function monter(app) {
 
   app.get('/revues/:id', exigerAuth, exigerDroit('habilitation:suivre'), (req, res) => {
     const u = req.session.utilisateur;
+    const nomDe = nomsActeurs();
     const campagne = campagneParId(nombre(req.params.id));
     if (!campagne) return res.status(404).send(pageErreur(req, 'Introuvable', 'Campagne introuvable.', '/revues'));
     const perimetre = perimetreRevue(u);
@@ -121,7 +123,7 @@ export function monter(app) {
       const peutStatuer = !close && peut(u.role, 'habilitation:revoquer') && referentGereApplication(u, r.application_id);
       const decision = r.decision
         ? `<span class="tag ${r.decision === 'retiree' ? 't-revoquee' : 't-executee'}">${r.decision === 'retiree' ? 'Retiré' : 'Maintenu'}</span>
-           <span class="sous decision-prise">${echap(r.decide_par ?? '')} · ${echap(String(r.decide_le ?? '').slice(0, 10))}</span>${r.motif ? `<span class="sous">${echap(r.motif)}</span>` : ''}`
+           <span class="sous decision-prise">${echap(nomDe(r.decide_par))} · ${echap(dateFr(r.decide_le))}</span>${r.motif ? `<span class="sous">${echap(r.motif)}</span>` : ''}`
         : '<span class="puce p-attente">à revoir</span>';
       const actions = peutStatuer && !r.decision
         ? `<form method="post" action="/revues/${campagne.id}/decision" class="revue-actions">
@@ -137,7 +139,7 @@ export function monter(app) {
         <td><span class="nom">${echap(benef)}</span><span class="mat">${echap(r.matricule)}</span></td>
         <td>${echap(r.app_libelle)}</td>
         <td>${echap(r.role)}</td>
-        <td class="num">${echap(r.date_realisation ?? '')}</td>
+        <td class="num">${echap(dateFr(r.date_realisation))}</td>
         <td class="num">${r.nb_preuves === 0 ? '<span class="puce p-attente">0</span>' : r.nb_preuves}</td>
         <td>${decision}</td>
         <td class="acts">${actions}</td>
@@ -146,9 +148,9 @@ export function monter(app) {
 
     const applications = parApplication.map((a) => `<tr>
       <td>${echap(a.libelle)} <span class="mono" style="color:var(--encre-3)">${echap(a.code)}</span></td>
-      <td>${a.referents ? echap(a.referents) : '<span class="puce p-attente">aucun référent</span>'}</td>
+      <td>${a.referents ? echap(String(a.referents).split(', ').map(nomDe).join(', ')) : '<span class="puce p-attente">aucun référent</span>'}</td>
       <td style="min-width:190px">${barreAvancement(a.decidees, a.total)}
-        <span class="mono" style="font-size:11.5px;color:var(--encre-3)">${a.decidees} sur ${a.total}</span></td>
+        <span style="font-size:12px;color:var(--encre-3)">${a.decidees} sur ${a.total}</span></td>
       <td class="num">${a.retirees}</td>
       <td class="acts"><a class="btn btn-petit" href="/revues/${campagne.id}?app=${a.id}">Voir</a></td>
     </tr>`).join('');
@@ -165,14 +167,14 @@ export function monter(app) {
       page(req, campagne.libelle,
         `${close
           ? `<div class="bandeau b-ok">${ICONES.bouclier}<div>
-              <div class="t">Campagne clôturée le ${echap(String(campagne.cloturee_le).slice(0, 10))} par ${echap(campagne.cloturee_par ?? '')}</div>
+              <div class="t">Campagne clôturée le ${echap(dateFr(campagne.cloturee_le))} par ${echap(nomDe(campagne.cloturee_par))}</div>
               <div class="d">${pluriel(bilan.maintenues, 'accès', '')} maintenu${bilan.maintenues >= 2 ? 's' : ''},
                 ${pluriel(bilan.retirees, 'retiré')}, ${pluriel(bilan.sansDecision, 'jamais revu')}.</div></div></div>`
           : bilan.sansDecision
             ? `<div class="bandeau b-warn">${ICONES.alerte}<div>
                 <div class="t">${pluriel(bilan.sansDecision, 'accès', '')} ${bilan.sansDecision >= 2 ? 'restent' : 'reste'} à revoir</div>
                 <div class="d">Sur ${pluriel(bilan.total, 'accès', '')} figé${bilan.total >= 2 ? 's' : ''} à l'ouverture de la campagne.</div></div>
-                ${campagne.echeance ? `<span class="r">échéance du ${echap(campagne.echeance)}</span>` : ''}</div>`
+                ${campagne.echeance ? `<span class="r">à finir avant le ${echap(dateFr(campagne.echeance))}</span>` : ''}</div>`
             : `<div class="bandeau b-ok">${ICONES.bouclier}<div><div class="t">Tous les accès ont été revus</div>
                 <div class="d">La campagne peut être clôturée.</div></div></div>`}
 
@@ -211,7 +213,7 @@ export function monter(app) {
         actions,
         {
           large: true,
-          sous: `Ouverte le <b>${echap(String(campagne.ouverte_le ?? '').slice(0, 10))}</b> par ${echap(campagne.ouverte_par)} · `
+          sous: `Ouverte le <b>${echap(dateFr(campagne.ouverte_le))}</b> par ${echap(nomDe(campagne.ouverte_par))} · `
             + `périmètre : ${campagne.perimetre_application_id ? 'une application' : 'toutes les applications'} · `
             + `<b>${bilan.total}</b> accès figés, <b>${bilan.maintenues}</b> maintenus, <b>${bilan.retirees}</b> retirés, <b>${bilan.sansDecision}</b> non revus`,
         }),
@@ -250,6 +252,7 @@ export function monter(app) {
     const campagne = campagneParId(nombre(req.params.id));
     if (!campagne) return res.status(404).send(pageErreur(req, 'Introuvable', 'Campagne introuvable.', '/revues'));
     const lignes = lignesCampagne(campagne.id, {});
+    /** @type {Array<[string, (r: any) => any]>} */
     const colonnes = [
       ['campagne', () => campagne.libelle],
       ['habilitation', (r) => r.habilitation_id],
