@@ -12,11 +12,14 @@ sans intervention manuelle.
 
 ## Mise en place, une seule fois
 
-0. Prérequis de la fondation, déjà en place dans le dépôt : licence approuvée
-   par l'OSI (EUPL-1.2), projet déjà publié, section « Politique de signature du
-   code » sur la page du projet (mention de SignPath, rôles, confidentialité),
-   désinstallation possible, nom et version du produit dans l'exécutable. Reste
-   à activer l'authentification à deux facteurs sur GitHub et sur SignPath.
+0. Prérequis de la fondation : licence approuvée par l'OSI (EUPL-1.2, en
+   place), projet déjà publié (en place), désinstallation possible et nom et
+   version du produit dans l'exécutable (en place), authentification à deux
+   facteurs sur GitHub et SignPath, et une section « Politique de signature du
+   code » sur la page du projet : mention « Free code signing provided by
+   SignPath.io, certificate by SignPath Foundation », rôles de l'équipe,
+   engagement de confidentialité. Cette section n'est à publier qu'une fois la
+   candidature acceptée, pour ne pas annoncer une signature qui n'existe pas.
 1. Déposer la candidature sur <https://signpath.org/apply> : dépôt
    `QuentinCazier/Registris`, licence EUPL-1.2, un seul fichier à signer,
    l'installateur produit par `.github/workflows/installateur-windows.yml`.
