@@ -126,7 +126,7 @@ begin
     if Erreur <> '' then
     begin
       Log('Installation silencieuse refusée : ' + Erreur);
-      MsgBox('Installation silencieuse refusée : ' + Erreur, mbError, MB_OK);
+      SuppressibleMsgBox('Installation silencieuse refusée : ' + Erreur, mbError, MB_OK, IDOK);
       Result := False;
     end;
   end;
@@ -341,13 +341,18 @@ begin
   begin
     EchecConfiguration := not Configurer;
     if EchecConfiguration then
-      MsgBox('La configuration a échoué. Détails dans ' + ExpandConstant('{app}\installation\windows\configurer.log'), mbError, MB_OK)
+      SuppressibleMsgBox('La configuration a échoué. Détails dans ' + ExpandConstant('{app}\installation\windows\configurer.log'), mbError, MB_OK, IDOK)
     else
     begin
       DemarrerService;
       if (not EtaitMiseAJour) and (ModeTls <> 'aucun') then OuvrirParefeu;
     end;
   end;
+end;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  if EchecConfiguration then Result := 10 else Result := 0;
 end;
 
 function AdresseSite(Param: String): String;
