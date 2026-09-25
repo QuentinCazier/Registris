@@ -31,6 +31,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
 $Dossier = [IO.Path]::GetFullPath($Dossier)
 $Donnees = [IO.Path]::GetFullPath($Donnees)
 function Etape($t) { Write-Host ''; Write-Host "== $t" -ForegroundColor Cyan }

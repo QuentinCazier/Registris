@@ -24,6 +24,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Lancé depuis PowerShell 7, Windows PowerShell hérite de ses modules et perd le lecteur Cert:.
+$env:PSModulePath = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine')
 if ($Journal) { Start-Transcript -Path $Journal -Force | Out-Null }
 
 function Hexa($n) {
