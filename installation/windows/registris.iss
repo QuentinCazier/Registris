@@ -177,6 +177,8 @@ var
   P: Integer;
 begin
   Result := True;
+  // En silencieux, les paramètres sont contrôlés par InitializeSetup : les pages restent vides.
+  if WizardSilent then Exit;
   if CurPageID = PageEtab.ID then
   begin
     P := StrToIntDef(PageEtab.Values[1], 0);
