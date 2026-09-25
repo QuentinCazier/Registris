@@ -56,7 +56,11 @@ export function enregistrerLogo({ tampon, nom }) {
   return fichier;
 }
 
-export function creerApplication(acteur, { code, libelle, categorieId, logo }) {
+// Un profil par ligne, sans doublon ni ligne vide.
+export const normaliserProfils = (v) => [...new Set(String(v ?? '').split(/\r?\n|\|/).map((p) => p.trim()).filter(Boolean))]
+  .map((p) => p.slice(0, 200)).slice(0, 50).join('\n');
+
+export function creerApplication(acteur, { code, libelle, categorieId, logo, profils = '' }) {
   const c = texte(code).toUpperCase();
   const l = texte(libelle);
   if (!c || !l) throw new Error('Code et libellé requis.');
@@ -65,14 +69,14 @@ export function creerApplication(acteur, { code, libelle, categorieId, logo }) {
   if (db.prepare('SELECT 1 FROM applications WHERE code = ?').get(c)) throw new Error(`L'application « ${c} » existe déjà.`);
   const cat = categorieId ? db.prepare('SELECT id FROM categories WHERE id = ?').get(Number(categorieId)) : null;
   const info = db
-    .prepare('INSERT INTO applications (code, libelle, categorie_id, logo) VALUES (?, ?, ?, ?)')
-    .run(c, l, cat?.id ?? null, logo ?? null);
+    .prepare('INSERT INTO applications (code, libelle, categorie_id, logo, profils) VALUES (?, ?, ?, ?, ?)')
+    .run(c, l, cat?.id ?? null, logo ?? null, normaliserProfils(profils) || null);
   const id = Number(info.lastInsertRowid);
   tracer(acteur, 'application:creer', { entite: 'application', entiteId: id, details: { code: c, libelle: l } });
   return id;
 }
 
-export function modifierApplication(acteur, id, { libelle, categorieId, logo, actif }) {
+export function modifierApplication(acteur, id, { libelle, categorieId, logo, actif, profils }) {
   const db = ouvrirDb();
   const a = db.prepare('SELECT * FROM applications WHERE id = ?').get(Number(id));
   if (!a) throw new Error('Application introuvable.');
@@ -80,8 +84,9 @@ export function modifierApplication(acteur, id, { libelle, categorieId, logo, ac
   const cat = categorieId ? db.prepare('SELECT id FROM categories WHERE id = ?').get(Number(categorieId)) : null;
   const catId = categorieId === '' ? null : cat ? cat.id : a.categorie_id;
   const act = actif === undefined ? a.actif : actif ? 1 : 0;
-  db.prepare('UPDATE applications SET libelle = ?, categorie_id = ?, logo = ?, actif = ? WHERE id = ?').run(
-    l, catId, logo ?? a.logo, act, a.id,
+  const prof = profils === undefined ? a.profils : normaliserProfils(profils) || null;
+  db.prepare('UPDATE applications SET libelle = ?, categorie_id = ?, logo = ?, actif = ?, profils = ? WHERE id = ?').run(
+    l, catId, logo ?? a.logo, act, prof, a.id,
   );
   tracer(acteur, 'application:modifier', { entite: 'application', entiteId: a.id, details: { libelle: l, actif: act } });
 }
@@ -201,6 +206,38 @@ export function listerUtilisateurs({ q = '', role = '' } = {}) {
     .all(...args);
   const perimetres = perimetresReferents();
   return users.map((u) => ({ ...u, applications: perimetres.get(u.login.toLowerCase()) ?? [] }));
+}
+
+// Identifiant (en minuscules) vers le nom affiché, comptes locaux et comptes de l'annuaire confondus.
+export function nomsActeurs() {
+  const db = ouvrirDb();
+  const m = new Map();
+  for (const c of db.prepare('SELECT login, nom FROM comptes_annuaire').all()) m.set(c.login.toLowerCase(), c.nom);
+  for (const u of db.prepare('SELECT login, nom FROM utilisateurs').all()) m.set(u.login.toLowerCase(), u.nom);
+  return (login) => m.get(String(login ?? '').toLowerCase()) ?? String(login ?? '');
+}
+
+// Étapes de mise en service, dans l'ordre où un administrateur les franchit.
+export function etatMiseEnRoute() {
+  const db = ouvrirDb();
+  const n = (sql) => db.prepare(sql).get().n;
+  const categories = n('SELECT COUNT(*) n FROM categories WHERE actif = 1');
+  const applications = n('SELECT COUNT(*) n FROM applications WHERE actif = 1');
+  const sansReferent = n(`SELECT COUNT(*) n FROM applications a WHERE a.actif = 1
+    AND NOT EXISTS (SELECT 1 FROM referent_applications ra WHERE ra.application_id = a.id)`);
+  const referentsGlobaux = n(`SELECT COUNT(*) n FROM utilisateurs u WHERE u.actif = 1 AND u.role = 'referent'
+    AND NOT EXISTS (SELECT 1 FROM referent_applications ra WHERE ra.login = u.login COLLATE NOCASE)`);
+  const ufs = n('SELECT COUNT(*) n FROM ufs');
+  const categoriesSansCourriel = n(`SELECT COUNT(*) n FROM categories c WHERE c.actif = 1
+    AND COALESCE((SELECT valeur FROM parametres p WHERE p.cle = 'routage:' || c.id), '') = ''`);
+  const etapes = [
+    { cle: 'categories', fait: categories > 0, titre: 'Créer les catégories', detail: 'Elles rangent le catalogue en onglets : soins, gestion, ressources humaines…', lien: '/admin/categories' },
+    { cle: 'applications', fait: applications > 0, titre: 'Déclarer les applications', detail: 'Une par une, depuis la bibliothèque, ou en important un tableur.', lien: '/admin/import' },
+    { cle: 'referents', fait: applications > 0 && (sansReferent === 0 || referentsGlobaux > 0), titre: 'Désigner un référent par application', detail: sansReferent ? `${sansReferent} application${sansReferent >= 2 ? 's' : ''} sans référent : leurs demandes n'arrivent chez personne.` : 'Chaque demande arrive chez la personne qui ouvre les droits.', lien: '/admin/utilisateurs' },
+    { cle: 'ufs', fait: ufs > 0, titre: 'Importer les unités fonctionnelles', detail: "Les agents choisissent leur service dans une liste au lieu de l'écrire.", lien: '/admin/import' },
+    { cle: 'courriels', fait: categories > 0 && categoriesSansCourriel === 0, titre: 'Indiquer les adresses de notification', detail: "L'équipe qui ouvre les droits est prévenue de chaque nouvelle demande.", lien: '/admin/routage' },
+  ];
+  return { etapes, faites: etapes.filter((e) => e.fait).length, total: etapes.length };
 }
 
 // login -> libellés des applications, logins locaux et annuaire confondus.

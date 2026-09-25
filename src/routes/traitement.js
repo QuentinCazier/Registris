@@ -5,13 +5,14 @@ import { exigerAuth, exigerDroit, peut, referentGereApplication } from '../roles
 import {
   habilitationParId, habilitationsDeAgent, listerHabilitations, libelleUfs, compterHabilitations,
 } from '../habilitations.js';
-import { traitantsPossibles } from '../administration.js';
+import { traitantsPossibles, nomsActeurs } from '../administration.js';
 import { verifierIntegrite, EXTENSIONS_ACCEPTEES } from '../preuves.js';
 import { historique } from '../audit.js';
 import {
-  echap, ICONES, page, tag, item, bandeauAlerte, libelleAction, pluriel, depuis, joursDepuis,
+  echap, ICONES, page, tag, item, bandeauAlerte, libelleAction, pluriel, depuis, joursDepuis, dateFr,
 } from '../ui.js';
 import { nombre, perimetreRevue } from './outils.js';
+import { formulaireProfil } from './habilitation.js';
 
 export function monter(app) {
   // Tout reste rendu côté serveur : chaque demande de la file a sa propre adresse.
@@ -23,6 +24,7 @@ export function monter(app) {
     const perimetre = perimetreRevue(u);
     const file = listerHabilitations({ file: true, applicationIds: perimetre, ...filtreVue, tri: 'demande', sens: 'asc' });
     const nbMoi = compterHabilitations({ file: true, applicationIds: perimetre, assigneA: u.login });
+    const nomDe = nomsActeurs();
     const demande = nombre(req.params.id);
     const courant = file.find((h) => h.id === demande) ?? file[0] ?? null;
     if (demande && !file.some((h) => h.id === demande)) {
@@ -43,7 +45,7 @@ export function monter(app) {
         <div class="l3">${fermeture ? '<span class="puce p-fermeture">fermeture demandée</span>' : tag(h.statut)}
           ${manque ? '<span class="puce p-attente">sans pièce</span>' : ''}
           ${retard ? `<span class="puce p-anomalie">en retard${h.relances ? `, relancé ${pluriel(h.relances, 'fois', '')}` : ''}</span>` : ''}
-          ${h.assigne_a ? `<span class="a-qui">${echap(h.assigne_a === u.login ? 'à moi' : h.assigne_a)}</span>` : ''}
+          ${h.assigne_a ? `<span class="a-qui">${echap(h.assigne_a === u.login ? 'à moi' : nomDe(h.assigne_a))}</span>` : ''}
           <span class="age">${echap(depuis(attente))}</span></div></a>`;
     };
 
@@ -104,23 +106,23 @@ export function monter(app) {
       .slice(0, 8)
       .map((x) => `<div class="piece">
         <div><div class="f">${echap(x.app_libelle)}</div><div class="m">${echap(x.role)}</div></div>
-        <div class="d">${tag(x.statut)}<span class="mono" style="font-size:11.5px;color:var(--encre-3)">${echap(x.date_realisation ?? x.date_demande ?? '')}</span>
-          <a class="btn btn-petit" href="/habilitations/${x.id}">Ouvrir</a></div></div>`).join('');
+        <div class="d">${tag(x.statut)}<span style="font-size:12px;color:var(--encre-3)">${echap(dateFr(x.date_realisation ?? x.date_demande))}</span>
+          <a class="btn btn-petit" href="/habilitations/${x.id}">Ouvrir<span class="sr"> ${echap(x.app_libelle)}</span></a></div></div>`).join('');
 
     const pieces = h.preuves.length
       ? h.preuves.map((p) => {
           const v = verifierIntegrite(p);
           return `<div class="piece"><span class="ic">${ICONES.routage}</span>
             <div><div class="f">${echap(p.nom_origine)}</div>
-              <div class="m">${echap(p.type)} · ${echap(p.cree_le.slice(0, 16).replace('T', ' '))} · ${echap(p.ajoutee_par ?? '')}</div></div>
-            <div class="d">${v.intacte ? '<span class="tag t-executee">intègre</span>' : '<span class="tag t-revoquee">altérée</span>'}
-              <a class="btn btn-petit" href="/preuves/${p.id}">Télécharger</a></div></div>`;
+              <div class="m">Jointe le ${echap(dateFr(p.cree_le))} par ${echap(nomDe(p.ajoutee_par))}</div></div>
+            <div class="d">${v.intacte ? '<span class="tag t-executee" title="Le fichier est identique à celui qui a été joint">vérifiée</span>' : '<span class="tag t-revoquee">modifiée depuis le dépôt</span>'}
+              <a class="btn btn-petit" href="/preuves/${p.id}">Télécharger<span class="sr"> ${echap(p.nom_origine)}</span></a></div></div>`;
         }).join('')
       : '';
 
     const ecritures = historique('habilitation', h.id).map((j) =>
-      `<li><span class="e"><b>${echap(j.acteur)}</b> ${libelleAction(j.action)}
-        <span class="q">${echap(j.horodatage.slice(0, 16).replace('T', ' '))}</span></span></li>`).join('');
+      `<li><span class="e"><b>${echap(nomDe(j.acteur))}</b> ${libelleAction(j.action)}
+        <span class="q">${echap(dateFr(j.horodatage))} à ${echap(j.horodatage.slice(11, 16))}</span></span></li>`).join('');
 
     res.send(
       page(req, 'À traiter',
@@ -152,7 +154,7 @@ export function monter(app) {
                     <span class="d">${echap(depuis(h.retrait_demande_le.slice(0, 10)))}</span></div>
                   <div class="paires">
                     ${item('Demandée par', echap(h.retrait_demande_par ?? '-'))}
-                    ${item('Le', `<span class="mono">${echap(h.retrait_demande_le.slice(0, 10))}</span>`)}
+                    ${item('Le', echap(dateFr(h.retrait_demande_le)))}
                     ${item('Accès concerné', `${echap(h.role)} sur ${echap(h.app_libelle)}`)}
                     ${item('État', tag(h.statut))}
                   </div>
@@ -165,6 +167,8 @@ export function monter(app) {
                     : `<div class="bloc-pied">Seul un référent de ${echap(h.app_libelle)} peut fermer cet accès.</div>`}
                 </div>`
               : ''}
+
+            ${!fermetureDemandee && peutAgir('habilitation:valider') ? formulaireProfil(h, `/traiter/${h.id}`) : ''}
 
             ${h.preuves.length === 0
               ? bandeauAlerte("Aucune pièce n'est jointe. Une habilitation sans preuve écrite ne sera pas opposable à un auditeur.")
@@ -185,11 +189,11 @@ export function monter(app) {
                 ${item('Matricule', `<span class="mono">${echap(h.matricule)}</span>`)}
                 ${item('Profil demandé', echap(h.role))}
                 ${item('Application', `${echap(h.app_libelle)} <span class="mono" style="color:var(--encre-3)">${echap(h.app_code)}</span>`)}
-                ${item('Unité fonctionnelle', `<span class="mono">${echap(libelleUfs(h) || '-')}</span>`)}
+                ${item('Unité fonctionnelle', echap(libelleUfs(h) || '-'))}
                 ${item('Site', echap(h.site_nom ?? '-'))}
                 ${item('Demandeur', `${echap(h.demandeur ?? '-')}${h.pour_autrui ? '' : ' (pour lui-même)'}`)}
-                ${item('Date de demande', `<span class="mono">${echap(h.date_demande ?? '-')}</span>`)}
-                ${item('Date de validation', `<span class="mono">${echap(h.date_validation ?? '-')}</span>`)}
+                ${item('Demandée le', echap(dateFr(h.date_demande) || '-'))}
+                ${item('Validée le', echap(dateFr(h.date_validation) || '-'))}
               </div>
               ${h.commentaire ? `<div class="bloc-pied" style="white-space:pre-wrap">${echap(h.commentaire)}</div>` : ''}
             </div>
@@ -198,7 +202,7 @@ export function monter(app) {
                 <span class="d"><a href="/recherche?q=${encodeURIComponent(h.matricule)}">Tout voir</a></span></div>${autres}</div>` : ''}
 
             <div class="bloc">
-              <div class="bloc-tete"><h2>Pièces au coffre</h2><span class="c">${h.preuves.length}</span></div>
+              <div class="bloc-tete"><h2>Pièces justificatives</h2><span class="c">${h.preuves.length}</span></div>
               ${pieces}
               ${peut(u.role, 'preuve:ajouter')
                 ? `<form method="post" action="/habilitations/${h.id}/preuves" enctype="multipart/form-data" style="padding:13px 16px;border-top:1px dashed var(--filet-fort)">
@@ -206,13 +210,13 @@ export function monter(app) {
                      <label for="piece-boite">Joindre le mail de demande, la validation du cadre ou une capture
                        <span class="opt">(${EXTENSIONS_ACCEPTEES.join(', ')} · ${Math.round(config.tailleMaxPreuve / 1048576)} Mo maximum)</span></label>
                      <input id="piece-boite" type="file" name="preuve" required accept="${EXTENSIONS_ACCEPTEES.join(',')}">
-                     <div class="actions"><button class="btn" type="submit">${ICONES.televerser}Déposer au coffre</button></div>
+                     <div class="actions"><button class="btn" type="submit">${ICONES.televerser}Joindre</button></div>
                    </form>` : ''}
             </div>
 
             <div class="bloc">
-              <div class="bloc-tete"><h2>Écritures scellées</h2><span class="c">${historique('habilitation', h.id).length}</span></div>
-              <ul class="fil">${ecritures || '<li>Aucune écriture.</li>'}</ul>
+              <div class="bloc-tete"><h2>Historique</h2><span class="c">${historique('habilitation', h.id).length}</span></div>
+              <ul class="fil">${ecritures || '<li>Aucune opération.</li>'}</ul>
             </div>
           </section>
         </div>`,

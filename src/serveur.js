@@ -32,19 +32,21 @@ import { monter as audit } from './routes/audit.js';
 import { monter as admin } from './routes/admin.js';
 import { monter as indicateurs } from './routes/indicateurs.js';
 import { monter as rapprochement } from './routes/rapprochement.js';
+import { monter as aide } from './routes/aide.js';
 
 const { version: VERSION } = createRequire(import.meta.url)('../package.json');
 
 // « /habilitations/nouvelle » doit passer avant « /habilitations/:id ».
 const ROUTES = [
   connexion, accueil, traitement, revue, agents, demandes, registre, habilitation, packs, audit, indicateurs,
-  rapprochement, admin,
+  rapprochement, admin, aide,
 ];
 
 // Seules ces routes lisent un formulaire multipart ; elles vérifient le jeton après multer.
 const MULTIPART = [
   /^\/habilitations$/, /^\/habilitations\/multiple$/, /^\/habilitations\/\d+\/preuves$/,
   /^\/rapprochements$/, /^\/admin\/applications$/, /^\/admin\/applications\/\d+\/modifier$/,
+  /^\/admin\/import\/(applications|ufs)$/,
 ];
 
 const refusJeton = (res) => res.status(403).type('html').send(

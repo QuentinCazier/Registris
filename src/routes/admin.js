@@ -14,6 +14,9 @@ import { getRoutage, setRoutage } from '../parametres.js';
 import { VERSION_BIBLIOTHEQUE } from '../logiciels.js';
 import { echap, ICONES, page, pageErreur, tagRole, logoApp, bandeauOk, pluriel } from '../ui.js';
 import { upload, nombre } from './outils.js';
+import { blocMiseEnRoute } from './accueil.js';
+import { importerApplications, importerUfs, MODELE_APPLICATIONS, MODELE_UFS } from '../import.js';
+import { champCsv } from '../csv.js';
 
 export function monter(app, { verifierCsrf }) {
   const admin = exigerDroit('admin:gerer');
@@ -28,13 +31,13 @@ export function monter(app, { verifierCsrf }) {
         <td class="mono">${echap(a.code)}</td>
         <td>${echap(a.libelle)}${a.actif === 0 ? ' <span class="micro">(inactive)</span>' : ''}</td>
         <td>${echap(a.cat_libelle ?? '-')}</td>
-        <td><div class="actions-ligne" style="margin:0">
-          <a class="btn btn-ghost btn-petit" href="/admin/applications/${a.id}/modifier">Modifier</a>
-          <form method="post" action="/admin/applications/${a.id}/supprimer" data-confirmer="Supprimer cette application ?"><button class="btn btn-danger btn-petit">Supprimer</button></form>
-        </div></td></tr>`).join('');
+        <td class="acts"><a class="btn btn-ghost btn-petit" href="/admin/applications/${a.id}/modifier">Modifier<span class="sr"> ${echap(a.libelle)}</span></a></td></tr>`).join('');
     res.send(
       page(req, 'Applications',
-        `<div class="deux-col">
+        `${blocMiseEnRoute()}
+        <p class="aide">Pour déclarer beaucoup d'applications d'un coup, avec leurs référents et leurs profils :
+          <a href="/admin/import">importer un tableur</a>.</p>
+        <div class="deux-col">
           <section style="margin-top:0"><h2>Catalogue</h2>
             <table><caption>Catalogue des applications</caption><thead><tr><th scope="col"></th><th scope="col">Code</th><th scope="col">Libellé</th><th scope="col">Catégorie</th><th scope="col"></th></tr></thead>
               <tbody>${lignes || '<tr><td colspan="5" style="color:var(--encre-3)">Aucune application.</td></tr>'}</tbody></table>
@@ -44,6 +47,8 @@ export function monter(app, { verifierCsrf }) {
               <label for="code">Code <span class="opt">(unique, ex. GAM, DPI)</span></label><input id="code" name="code" required maxlength="40" pattern="[A-Za-z0-9_.\\-]{2,40}">
               <label for="libelle">Libellé</label><input id="libelle" name="libelle" required maxlength="120" placeholder="ex. Gestion administrative des malades">
               <label for="categorieId">Catégorie</label><select id="categorieId" name="categorieId">${optCat(null)}</select>
+              <label for="profils">Profils proposés aux agents <span class="opt">(un par ligne, facultatif)</span></label>
+              <textarea id="profils" name="profils" maxlength="5000" placeholder="Consultation&#10;Saisie&#10;Administration" style="min-height:80px"></textarea>
               <label for="logo">Logo <span class="opt">(png, jpg, svg, webp, 2 Mo max, facultatif)</span></label><input id="logo" type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,.webp,.gif">
               <div class="actions"><button class="btn btn-primary" type="submit">${ICONES.plus}Ajouter</button></div>
             </form>
@@ -55,7 +60,7 @@ export function monter(app, { verifierCsrf }) {
   app.post('/admin/applications', exigerAuth, admin, uploadLogo, verifierCsrf, (req, res) => {
     try {
       const logo = req.file ? enregistrerLogo({ tampon: req.file.buffer, nom: req.file.originalname }) : null;
-      creerApplication(acteur(req), { code: req.body.code, libelle: req.body.libelle, categorieId: nombre(req.body.categorieId), logo });
+      creerApplication(acteur(req), { code: req.body.code, libelle: req.body.libelle, categorieId: nombre(req.body.categorieId), logo, profils: req.body.profils });
     } catch (e) {
       return erreur400(req, res, 'Application non créée', e, '/admin/applications');
     }
@@ -72,9 +77,19 @@ export function monter(app, { verifierCsrf }) {
           <label for="libelle">Libellé</label><input id="libelle" name="libelle" value="${echap(a.libelle)}" required maxlength="120">
           <label for="categorieId">Catégorie</label><select id="categorieId" name="categorieId"><option value="">Sans catégorie</option>${cats.map((c) => `<option value="${c.id}" ${c.id === a.categorie_id ? 'selected' : ''}>${echap(c.libelle)}</option>`).join('')}</select>
           <label class="radio" style="margin-top:14px"><input type="checkbox" name="actif" value="1" ${a.actif !== 0 ? 'checked' : ''}> Active (proposée au catalogue)</label>
+          <label for="profils">Profils proposés aux agents <span class="opt">(un par ligne)</span></label>
+          <textarea id="profils" name="profils" maxlength="5000" style="min-height:100px">${echap(a.profils ?? '')}</textarea>
+          <div class="champ-aide">L'agent les choisit dans une liste. Il peut aussi répondre « je ne sais pas » : le référent choisira.</div>
           <label for="logo">Remplacer le logo <span class="opt">(facultatif)</span></label><input id="logo" type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,.webp,.gif">
           <div class="actions"><button class="btn btn-primary" type="submit">Enregistrer</button><a class="btn btn-ghost" href="/admin/applications">Annuler</a></div>
-        </form>`),
+        </form>
+        <div class="carte" style="max-width:560px;border-color:var(--anomalie-filet)">
+          <h2 style="margin:0 0 4px;font-size:14px">Supprimer l'application</h2>
+          <p class="aide" style="margin-bottom:10px">Possible seulement si aucune demande ne la concerne. Sinon, décochez « Active » :
+            elle disparaît du catalogue et l'historique reste intact.</p>
+          <form method="post" action="/admin/applications/${a.id}/supprimer" data-confirmer="Supprimer définitivement ${echap(a.code)} ?">
+            <button class="btn btn-danger">Supprimer ${echap(a.code)}</button></form>
+        </div>`),
     );
   });
   app.post('/admin/applications/:id/modifier', exigerAuth, admin, uploadLogo, verifierCsrf, (req, res) => {
@@ -82,6 +97,7 @@ export function monter(app, { verifierCsrf }) {
       const logo = req.file ? enregistrerLogo({ tampon: req.file.buffer, nom: req.file.originalname }) : undefined;
       modifierApplication(acteur(req), nombre(req.params.id), {
         libelle: req.body.libelle, categorieId: req.body.categorieId === '' ? '' : nombre(req.body.categorieId), logo, actif: req.body.actif === '1',
+        profils: req.body.profils,
       });
     } catch (e) {
       return erreur400(req, res, 'Modification refusée', e, `/admin/applications/${nombre(req.params.id)}/modifier`);
@@ -92,9 +108,70 @@ export function monter(app, { verifierCsrf }) {
     try {
       supprimerApplication(acteur(req), nombre(req.params.id));
     } catch (e) {
-      return erreur400(req, res, 'Suppression refusée', e, '/admin/applications');
+      return erreur400(req, res, 'Suppression refusée', e, `/admin/applications/${nombre(req.params.id)}/modifier`);
     }
     res.redirect('/admin/applications');
+  });
+
+  // --- Import depuis un tableur ---------------------------------------------------------------
+  const csvModele = (lignes) => `﻿${lignes.map((l) => l.map(champCsv).join(';')).join('\r\n')}\r\n`;
+  app.get(['/admin/import/modele-applications.csv', '/admin/import/modele-ufs.csv'], exigerAuth, admin, (req, res) => {
+    const quoi = req.path.includes('ufs') ? 'ufs' : 'applications';
+    const modele = quoi === 'ufs' ? MODELE_UFS : MODELE_APPLICATIONS;
+    res.type('text/csv; charset=utf-8').attachment(`modele-${quoi}.csv`).send(csvModele(modele));
+  });
+
+  app.get('/admin/import', exigerAuth, admin, (req, res) => {
+    const bloc = (quoi, titre, texte, colonnes) => `<div class="carte">
+        <h2 style="margin:0 0 6px;font-size:15px">${titre}</h2>
+        <p class="aide">${texte}</p>
+        <p class="aide">Colonnes : ${colonnes}. <a href="/admin/import/modele-${quoi}.csv">Télécharger le modèle</a>, remplissez-le dans Excel ou LibreOffice,
+          puis enregistrez-le au format CSV.</p>
+        <form method="post" action="/admin/import/${quoi}" enctype="multipart/form-data">
+          <label for="fichier-${quoi}">Fichier CSV</label>
+          <input id="fichier-${quoi}" type="file" name="fichier" required accept=".csv,.txt">
+          <div class="actions"><button class="btn btn-primary" type="submit">${ICONES.televerser}Importer</button></div>
+        </form></div>`;
+    res.send(
+      page(req, 'Importer un tableur',
+        `<p class="aide">Un import ajoute ce qui manque et met à jour ce qui existe déjà, repéré par son code. Il ne supprime rien.
+          Chaque import est inscrit au journal d'audit.</p>
+        <div class="deux-col">
+          ${bloc('applications', 'Applications, référents et profils',
+            "Une ligne par application. Les catégories absentes sont créées. Les référents sont les identifiants de connexion, séparés par des virgules. Les profils aussi.",
+            'Code, Libellé, Catégorie, Référents, Profils')}
+          ${bloc('ufs', 'Unités fonctionnelles',
+            "Une ligne par UF, telle qu'elle sort du fichier structure de l'établissement.",
+            'Code, Libellé')}
+        </div>`),
+    );
+  });
+
+  const uploadCsv = (req, res, next) => upload.single('fichier')(req, res, (err) => (err ? erreur400(req, res, 'Fichier refusé', err, '/admin/import') : next()));
+  app.post('/admin/import/:quoi', exigerAuth, admin, uploadCsv, verifierCsrf, (req, res) => {
+    const importer = { applications: importerApplications, ufs: importerUfs }[req.params.quoi];
+    if (!importer) return res.status(404).send(pageErreur(req, 'Introuvable', 'Import inconnu.', '/admin/import'));
+    if (!req.file) return res.status(400).send(pageErreur(req, 'Fichier manquant', 'Aucun fichier reçu.', '/admin/import'));
+    let bilan;
+    try {
+      bilan = importer(acteur(req), req.file.buffer);
+    } catch (e) {
+      return erreur400(req, res, 'Import impossible', e, '/admin/import');
+    }
+    const quoi = req.params.quoi === 'ufs' ? 'unité fonctionnelle' : 'application';
+    const resume = `${pluriel(bilan.creees, quoi)} ${bilan.creees >= 2 ? 'ajoutées' : 'ajoutée'}, ${pluriel(bilan.modifiees, quoi)} ${bilan.modifiees >= 2 ? 'mises' : 'mise'} à jour`
+      + (bilan.referents !== undefined ? `, ${pluriel(bilan.referents, 'référent')} ${bilan.referents >= 2 ? 'rattachés' : 'rattaché'}` : '') + '.';
+    res.send(
+      page(req, 'Import terminé',
+        `${bandeauOk(resume)}
+        ${bilan.erreurs.length
+          ? `<div class="bloc"><div class="bloc-tete"><h2>Lignes ignorées</h2><span class="c">${bilan.erreurs.length}</span></div>
+              <table><caption>Lignes du fichier non importées</caption><thead><tr><th scope="col">Ligne</th><th scope="col">Raison</th></tr></thead>
+              <tbody>${bilan.erreurs.map((e) => `<tr><td>${e.ligne}</td><td>${echap(e.message)}</td></tr>`).join('')}</tbody></table></div>`
+          : ''}
+        <div class="actions"><a class="btn btn-primary" href="${req.params.quoi === 'ufs' ? '/admin/ufs' : '/admin/applications'}">Voir le résultat</a>
+          <a class="btn btn-ghost" href="/admin/import">Importer un autre fichier</a></div>`),
+    );
   });
 
   app.get('/admin/categories', exigerAuth, admin, (req, res) => {

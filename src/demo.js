@@ -36,6 +36,17 @@ const APPLICATIONS = [
   ['VPN', 'Accès distant (VPN)', 'Collaboratif et infrastructure'],
 ];
 
+// Profils proposés aux agents dans le formulaire de demande.
+const PROFILS = {
+  DPI: ['Soignant', 'Médecin', 'Secrétaire médicale', 'Consultation'],
+  PRESCRIPTION: ['Prescripteur', 'Infirmier', 'Pharmacien'],
+  GAM: ['Gestionnaire admissions', 'Facturation', 'Consultation'],
+  GEF: ['Engagement des dépenses', 'Liquidation', 'Consultation'],
+  PACS: ['Lecture des examens', 'Manipulateur', 'Radiologue'],
+  VPN: ['Accès distant standard', 'Accès distant administrateur'],
+  PAIE: ['Gestionnaire de paie', 'Consultation'],
+};
+
 const UFS = [
   ['1101', 'Médecine polyvalente'],
   ['1203', 'Chirurgie viscérale'],
@@ -98,8 +109,8 @@ export function chargerDemo() {
   for (const [libelle, ordre] of CATEGORIES) insCat.run(libelle, ordre);
   const catId = (l) => db.prepare('SELECT id FROM categories WHERE libelle = ?').get(l).id;
 
-  const insApp = db.prepare('INSERT OR IGNORE INTO applications (code, libelle, categorie_id) VALUES (?, ?, ?)');
-  for (const [code, libelle, cat] of APPLICATIONS) insApp.run(code, libelle, catId(cat));
+  const insApp = db.prepare('INSERT OR IGNORE INTO applications (code, libelle, categorie_id, profils) VALUES (?, ?, ?, ?)');
+  for (const [code, libelle, cat] of APPLICATIONS) insApp.run(code, libelle, catId(cat), PROFILS[code]?.join('\n') ?? null);
   const appId = (code) => db.prepare('SELECT id FROM applications WHERE code = ?').get(code).id;
 
   const insUf = db.prepare('INSERT OR IGNORE INTO ufs (code, libelle) VALUES (?, ?)');
