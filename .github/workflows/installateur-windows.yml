@@ -28,6 +28,7 @@ env:
 jobs:
   construire:
     runs-on: windows-latest
+    timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
@@ -93,12 +94,14 @@ jobs:
           [IO.File]::WriteAllLines("$PWD\dist\SHA256SUMS-windows.txt", $lignes)
 
       - name: Essai d'installation silencieuse sur l'exécuteur
+        timeout-minutes: 10
         run: |
           $env:REGISTRIS_MOT_DE_PASSE = 'Essai-Installateur-2026!'
-          $p = Start-Process -Wait -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" `
+          $p = Start-Process -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" `
             -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\dist\installation.log", '"/Etablissement=CH Essai"', '/Port=3443', '/Tls=auto'
+          if (-not $p.WaitForExit(300000)) { $p | Stop-Process -Force; throw "installateur bloqué depuis 5 minutes" }
           "Code de sortie de l'installateur : $($p.ExitCode)"
-          if ($p.ExitCode -ne 0) { Get-Content dist\installation.log | Select-Object -Last 40; throw "installation en échec" }
+          if ($p.ExitCode -ne 0) { throw "installation en échec" }
           Get-Content "C:\Program Files\Registris\installation\windows\configurer.log" | Select-Object -Last 15
           $s = Get-Service Registris
           "Service : $($s.Status), démarrage $($s.StartType)"
@@ -120,8 +123,10 @@ jobs:
           if (-not (Get-NetFirewallRule -DisplayName Registris -ErrorAction SilentlyContinue)) { throw "règle de pare-feu absente" }
 
       - name: Essai de mise à jour et de désinstallation silencieuses
+        timeout-minutes: 10
         run: |
-          $p = Start-Process -Wait -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          $p = Start-Process -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\dist\mise-a-jour.log"
+          if (-not $p.WaitForExit(300000)) { $p | Stop-Process -Force; throw "mise à jour bloquée depuis 5 minutes" }
           if ($p.ExitCode -ne 0) { throw "mise à jour en échec ($($p.ExitCode))" }
           Start-Sleep -Seconds 5
           $s = Get-Service Registris
@@ -129,7 +134,8 @@ jobs:
           if ($s.Status -ne 'Running') { throw "service arrêté après la mise à jour" }
           $r = Invoke-WebRequest -SkipCertificateCheck -Uri https://127.0.0.1:3443/sante -TimeoutSec 5
           if ($r.Content -notmatch '"statut":"ok"') { throw "santé en échec après mise à jour" }
-          $u = Start-Process -Wait -PassThru -FilePath "C:\Program Files\Registris\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          $u = Start-Process -PassThru -FilePath "C:\Program Files\Registris\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          if (-not $u.WaitForExit(180000)) { $u | Stop-Process -Force; throw "désinstallation bloquée depuis 3 minutes" }
           "Code de sortie de la désinstallation : $($u.ExitCode)"
           Start-Sleep -Seconds 3
           if (Get-Service Registris -ErrorAction SilentlyContinue) { throw "le service existe encore" }
@@ -138,15 +144,24 @@ jobs:
           if (-not (Test-Path C:\ProgramData\Registris\registris.env)) { throw "les données auraient dû être conservées" }
           "Désinstallation propre, données conservées."
 
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: |
+          foreach ($f in 'dist\installation.log', 'dist\mise-a-jour.log', 'C:\Program Files\Registris\installation\windows\configurer.log') {
+            if (Test-Path $f) { "===== $f"; Get-Content $f | Select-Object -Last 60 }
+          }
+          Get-ChildItem C:\ProgramData\Registris\journaux\*.log -ErrorAction SilentlyContinue | ForEach-Object { "===== $($_.FullName)"; Get-Content $_ | Select-Object -Last 40 }
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: installateur-windows-${{ env.VERSION }}
           path: |
             dist/*.exe
             dist/*-windows.zip
             dist/SHA256SUMS-windows.txt
-            dist/installation.log
-          if-no-files-found: error
+            dist/*.log
+          if-no-files-found: warn
 
       - name: Publication sur la release
         if: ${{ inputs.publier }}
