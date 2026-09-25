@@ -369,6 +369,53 @@ export function initialiserSchema() {
       UNIQUE (campagne_id, habilitation_id)
     );
 
+    -- Départs présumés, détectés par l'annuaire ou un fichier RH, en attente de confirmation.
+    CREATE TABLE IF NOT EXISTS departs_detectes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id    INTEGER NOT NULL REFERENCES agents(id),
+      source      TEXT NOT NULL,
+      motif       TEXT NOT NULL,
+      statut      TEXT NOT NULL DEFAULT 'a_confirmer' CHECK (statut IN ('a_confirmer', 'confirme', 'ecarte')),
+      detecte_le  TEXT NOT NULL DEFAULT (datetime('now')),
+      traite_par  TEXT,
+      traite_le   TEXT,
+      motif_ecart TEXT
+    );
+
+    -- Cadres qui donnent leur accord aux demandes concernant une UF.
+    CREATE TABLE IF NOT EXISTS uf_responsables (
+      uf_id  INTEGER NOT NULL REFERENCES ufs(id) ON DELETE CASCADE,
+      login  TEXT NOT NULL,
+      PRIMARY KEY (uf_id, login)
+    );
+
+    -- Un référent absent confie son périmètre à un suppléant pour une période.
+    CREATE TABLE IF NOT EXISTS suppleances (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulaire  TEXT NOT NULL,
+      suppleant  TEXT NOT NULL,
+      du         TEXT NOT NULL,
+      au         TEXT NOT NULL,
+      cree_par   TEXT NOT NULL,
+      cree_le    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Jetons de l'API en lecture : seule l'empreinte est conservée.
+    CREATE TABLE IF NOT EXISTS jetons_api (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      nom            TEXT NOT NULL,
+      prefixe        TEXT NOT NULL,
+      empreinte      TEXT NOT NULL UNIQUE,
+      cree_par       TEXT NOT NULL,
+      cree_le        TEXT NOT NULL DEFAULT (datetime('now')),
+      dernier_usage  TEXT,
+      usages         INTEGER NOT NULL DEFAULT 0,
+      actif          INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_departs_statut ON departs_detectes(statut, agent_id);
+    CREATE INDEX IF NOT EXISTS idx_suppleances_periode ON suppleances(suppleant, du, au);
+    CREATE INDEX IF NOT EXISTS idx_uf_responsables_login ON uf_responsables(login);
     CREATE INDEX IF NOT EXISTS idx_agents_matricule ON agents(matricule);
     CREATE INDEX IF NOT EXISTS idx_hab_agent ON habilitations(agent_id);
     CREATE INDEX IF NOT EXISTS idx_hab_statut ON habilitations(statut);
@@ -386,5 +433,19 @@ export function initialiserSchema() {
   ajouterColonneSiAbsente('habilitations', 'relance_le', 'TEXT');
   ajouterColonneSiAbsente('habilitations', 'relances', 'INTEGER NOT NULL DEFAULT 0');
   ajouterColonneSiAbsente('applications', 'profils', 'TEXT');
+  ajouterColonneSiAbsente('habilitations', 'date_fin', 'TEXT');
+  ajouterColonneSiAbsente('applications', 'accord_cadre', 'INTEGER NOT NULL DEFAULT 0');
+  ajouterColonneSiAbsente('habilitations', 'accord_cadre', 'TEXT');
+  ajouterColonneSiAbsente('habilitations', 'accord_par', 'TEXT');
+  ajouterColonneSiAbsente('habilitations', 'accord_le', 'TEXT');
+  ajouterColonneSiAbsente('preuves', 'purgee_le', 'TEXT');
+  base.exec(`
+    CREATE INDEX IF NOT EXISTS idx_hab_date_fin ON habilitations(date_fin);
+    CREATE INDEX IF NOT EXISTS idx_hab_accord ON habilitations(accord_cadre);
+    CREATE INDEX IF NOT EXISTS idx_hab_application ON habilitations(application_id, statut);
+    CREATE INDEX IF NOT EXISTS idx_hab_maj ON habilitations(maj_le);
+    CREATE INDEX IF NOT EXISTS idx_hab_cree ON habilitations(cree_le, id);
+    CREATE INDEX IF NOT EXISTS idx_hab_statut_preuves ON habilitations(statut, id);
+  `);
   return base;
 }

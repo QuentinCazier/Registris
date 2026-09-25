@@ -7,7 +7,7 @@ import {
   exporterHabilitations,
 } from '../habilitations.js';
 import { tracer } from '../audit.js';
-import { echap, ICONES, page, tag, pluriel } from '../ui.js';
+import { echap, ICONES, page, tag, pluriel, dateFr } from '../ui.js';
 import { nombre } from './outils.js';
 
 export function monter(app) {
@@ -22,6 +22,7 @@ export function monter(app) {
       applicationId: nombre(req.query.app),
       q: String(req.query.q ?? '').slice(0, 100),
       sansPreuve: req.query.sans_preuve === '1',
+      temporaires: req.query.temp === '1',
       statuts: vue === 'a-traiter' ? ['demandee', 'validee'] : [],
       tri: Object.keys(TRIS).includes(req.query.tri) ? req.query.tri : '',
       sens: req.query.sens === 'asc' ? 'asc' : 'desc',
@@ -50,12 +51,13 @@ export function monter(app) {
     const onglet = (libelle, n, href, actif) =>
       `<a href="${href}"${actif ? ' class="actif" aria-current="page"' : ''}>${libelle} <span class="c">${n}</span></a>`;
     const onglets = [
-      onglet('Toutes', compterHabilitations(base), lien({}), !c.statut && !c.sansPreuve && !c.vue),
+      onglet('Toutes', compterHabilitations(base), lien({}), !c.statut && !c.sansPreuve && !c.vue && !c.temporaires),
       onglet('À traiter', compterHabilitations({ ...base, statuts: ['demandee', 'validee'] }), lien({ vue: 'a-traiter' }), c.vue === 'a-traiter'),
       onglet('À valider', compterHabilitations({ ...base, statut: 'demandee' }), lien({ statut: 'demandee' }), c.statut === 'demandee'),
       onglet('Actives', compterHabilitations({ ...base, statut: 'executee' }), lien({ statut: 'executee' }), c.statut === 'executee'),
       onglet('Révoquées', compterHabilitations({ ...base, statut: 'revoquee' }), lien({ statut: 'revoquee' }), c.statut === 'revoquee'),
       onglet('Sans pièce', compterHabilitations({ ...base, sansPreuve: true }), lien({ sans_preuve: '1' }), c.sansPreuve),
+      onglet('Temporaires', compterHabilitations({ ...base, temporaires: true }), lien({ temp: '1', tri: 'fin', sens: 'asc' }), c.temporaires),
     ].join('');
 
     // En-têtes cliquables : un clic trie, un second inverse le sens.
@@ -67,6 +69,7 @@ export function monter(app) {
       if (c.applicationId) p.set('app', String(c.applicationId));
       if (c.statut) p.set('statut', c.statut);
       if (c.sansPreuve) p.set('sans_preuve', '1');
+      if (c.temporaires) p.set('temp', '1');
       if (c.vue) p.set('vue', c.vue);
       p.set('tri', cle);
       p.set('sens', sens);
@@ -82,16 +85,16 @@ export function monter(app) {
         ? `<form method="post" action="/habilitations/${h.id}/${action}"><input type="hidden" name="retour" value="${echap(req.originalUrl)}">
              <button class="btn btn-petit">${label}</button></form> ` : '';
       const acts = h.statut === 'demandee'
-        ? btn('valider', 'Valider', 'habilitation:valider') + btn('executer', 'Exécuter', 'habilitation:executer')
-        : h.statut === 'validee' ? btn('executer', 'Exécuter', 'habilitation:executer') : '';
+        ? btn('valider', 'Valider', 'habilitation:valider') + btn('executer', 'Marquer ouvert', 'habilitation:executer')
+        : h.statut === 'validee' ? btn('executer', 'Marquer ouvert', 'habilitation:executer') : '';
       const manquePreuve = h.nb_preuves === 0 && ['validee', 'executee'].includes(h.statut);
       return `<tr>
         <td class="num"><a href="/habilitations/${h.id}">${h.id}</a></td>
         <td><span class="nom">${echap(benef)}</span><span class="mat">${echap(h.matricule)}</span></td>
         <td>${echap(h.app_libelle)}</td>
         <td>${echap(h.role)}</td>
-        <td class="num">${echap(h.date_demande ?? '')}</td>
-        <td class="num">${echap(h.date_realisation ?? '')}</td>
+        <td class="num">${echap(dateFr(h.date_demande))}</td>
+        <td class="num">${echap(dateFr(h.date_realisation))}${h.date_fin ? `<span class="sous">jusqu'au ${echap(dateFr(h.date_fin))}</span>` : ''}</td>
         <td>${tag(h.statut)}</td>
         <td class="num">${manquePreuve ? '<span class="puce p-attente">0</span>' : h.nb_preuves}</td>
         <td class="acts">${acts || `<a class="btn btn-petit" href="/habilitations/${h.id}">Ouvrir</a>`}</td>
@@ -119,11 +122,12 @@ export function monter(app) {
           ${c.vue ? `<input type="hidden" name="vue" value="${echap(c.vue)}">` : ''}
           ${c.statut ? `<input type="hidden" name="statut" value="${echap(c.statut)}">` : ''}
           ${c.sansPreuve ? '<input type="hidden" name="sans_preuve" value="1">' : ''}
+          ${c.temporaires ? '<input type="hidden" name="temp" value="1">' : ''}
           ${c.tri ? `<input type="hidden" name="tri" value="${echap(c.tri)}"><input type="hidden" name="sens" value="${echap(c.sens)}">` : ''}
           <div><label for="f-q">Agent, profil, application</label><input id="f-q" type="search" name="q" value="${echap(c.q)}" placeholder="Rechercher"></div>
           <div><label for="f-app">Application</label><select id="f-app" name="app"><option value="">Toutes</option>${optsApp}</select></div>
           <button class="btn" type="submit">Filtrer</button>
-          ${c.q || c.statut || c.applicationId || c.sansPreuve || c.vue ? '<a class="btn" href="/suivi">Réinitialiser</a>' : ''}
+          ${c.q || c.statut || c.applicationId || c.sansPreuve || c.vue || c.temporaires ? '<a class="btn" href="/suivi">Réinitialiser</a>' : ''}
           <a class="btn" href="${echap(csv)}" style="margin-left:auto">${ICONES.coffre}Exporter en CSV</a>
         </form>
         <div class="bloc">
@@ -131,7 +135,7 @@ export function monter(app) {
             ? `<table><caption>Habilitations du registre</caption>
                 <thead><tr>${enTete('id', 'N°', 'num')}${enTete('agent', 'Bénéficiaire')}
                   ${enTete('application', 'Application')}${enTete('role', 'Profil accordé')}
-                  ${enTete('demande', 'Demandée')}${enTete('realisation', 'Réalisée')}
+                  ${enTete('demande', 'Demandée')}${enTete('realisation', 'Ouverte')}
                   ${enTete('statut', 'Statut')}${enTete('preuves', 'Pièces', 'num')}
                   <th scope="col">Actions</th></tr></thead>
                 <tbody>${habs.map(ligne).join('')}</tbody></table>`
@@ -153,6 +157,7 @@ export function monter(app) {
     const u = req.session.utilisateur;
     const c = criteresRegistre(req);
     const lignes = exporterHabilitations(c);
+    /** @type {Array<[string, (h: any) => any]>} */
     const colonnes = [
       ['id', (h) => h.id],
       ['matricule', (h) => h.matricule],
@@ -168,6 +173,7 @@ export function monter(app) {
       ['date_validation', (h) => h.date_validation],
       ['date_realisation', (h) => h.date_realisation],
       ['date_revocation', (h) => h.date_revocation],
+      ['date_fin', (h) => h.date_fin],
       ['demandeur', (h) => h.demandeur],
       ['pour_autrui', (h) => (h.pour_autrui ? 'oui' : 'non')],
       ['nb_pieces', (h) => h.nb_preuves],

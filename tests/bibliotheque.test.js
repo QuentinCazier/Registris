@@ -11,7 +11,7 @@ import './_env.js';
 const { initialiserSchema } = await import('../src/db.js');
 const A = await import('../src/administration.js');
 const H = await import('../src/habilitations.js');
-const { BIBLIOTHEQUE, produits, produitParCode } = await import('../src/logiciels.js');
+const { BIBLIOTHEQUE, produits } = await import('../src/logiciels.js');
 const { journal } = await import('../src/audit.js');
 
 initialiserSchema();

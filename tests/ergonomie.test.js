@@ -197,7 +197,7 @@ test('administration : mise en route guidée, suppression rangée dans la fiche'
 });
 
 test('import : applications, catégories, référents et profils depuis un tableur', () => {
-  const csv = Buffer.from('﻿Code;Libellé;Catégorie;Référents;Profils\r\n'
+  const csv = Buffer.from('\ufeffCode;Libellé;Catégorie;Référents;Profils\r\n'
     + 'GEF;Gestion économique;Gestion;jdupont, MMartin;Engagement, Liquidation\r\n'
     + 'PAIE;Paie et rémunérations;;;\r\n'
     + ';Sans code;;;\r\n'
@@ -239,7 +239,7 @@ test('aide : une fiche par rôle, la sienne en premier', async () => {
   await c.connecter('ref');
   const html = sansStyle(await (await c.go('/aide')).text());
   const titres = [...html.matchAll(/<h2 id="aide-([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(titres, ['referent', 'utilisateur', 'controleur', 'admin']);
+  assert.deepEqual(titres, ['referent', 'utilisateur', 'cadre', 'controleur', 'admin']);
   assert.match(html, /href="\/aide"/, 'lien dans la barre haute');
 });
 

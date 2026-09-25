@@ -26,7 +26,7 @@ démonstration (`npm run demo`).
 git clone https://github.com/QuentinCazier/Registris.git
 cd registris
 npm install
-npm test
+npm run verifier      # style (ESLint), types (TypeScript sur le JavaScript) et tests
 npm run demo && npm start
 ```
 
@@ -41,7 +41,9 @@ Conventions :
 - Toute route qui modifie des données est un `POST` protégé par le jeton CSRF et
   un `exigerDroit(...)`.
 - Un test par comportement ajouté ou corrigé, dans `tests/`. La suite doit rester
-  verte : `npm test`.
+  verte : `npm run verifier`, que l'intégration continue relance à chaque PR.
+- Les types se déclarent en JSDoc quand TypeScript ne les devine pas ; pas de
+  fichier `.ts` hors de `src/types.d.ts`.
 - Pas de tiret cadratin dans le code ni la documentation ; utiliser « : », une
   virgule ou des parenthèses.
 

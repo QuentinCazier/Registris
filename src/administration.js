@@ -60,6 +60,10 @@ export function enregistrerLogo({ tampon, nom }) {
 export const normaliserProfils = (v) => [...new Set(String(v ?? '').split(/\r?\n|\|/).map((p) => p.trim()).filter(Boolean))]
   .map((p) => p.slice(0, 200)).slice(0, 50).join('\n');
 
+/**
+ * @param {string} acteur
+ * @param {{ code: string, libelle: string, categorieId?: number | null, logo?: string | null, profils?: string }} app
+ */
 export function creerApplication(acteur, { code, libelle, categorieId, logo, profils = '' }) {
   const c = texte(code).toUpperCase();
   const l = texte(libelle);
@@ -76,7 +80,12 @@ export function creerApplication(acteur, { code, libelle, categorieId, logo, pro
   return id;
 }
 
-export function modifierApplication(acteur, id, { libelle, categorieId, logo, actif, profils }) {
+/**
+ * @param {string} acteur
+ * @param {number} id
+ * @param {{ libelle?: string, categorieId?: number | '' | null, logo?: string, actif?: boolean, profils?: string, accordCadre?: boolean }} champs
+ */
+export function modifierApplication(acteur, id, { libelle, categorieId, logo, actif, profils, accordCadre }) {
   const db = ouvrirDb();
   const a = db.prepare('SELECT * FROM applications WHERE id = ?').get(Number(id));
   if (!a) throw new Error('Application introuvable.');
@@ -85,9 +94,11 @@ export function modifierApplication(acteur, id, { libelle, categorieId, logo, ac
   const catId = categorieId === '' ? null : cat ? cat.id : a.categorie_id;
   const act = actif === undefined ? a.actif : actif ? 1 : 0;
   const prof = profils === undefined ? a.profils : normaliserProfils(profils) || null;
-  db.prepare('UPDATE applications SET libelle = ?, categorie_id = ?, logo = ?, actif = ?, profils = ? WHERE id = ?').run(
-    l, catId, logo ?? a.logo, act, prof, a.id,
+  const accord = accordCadre === undefined ? a.accord_cadre : accordCadre ? 1 : 0;
+  db.prepare('UPDATE applications SET libelle = ?, categorie_id = ?, logo = ?, actif = ?, profils = ?, accord_cadre = ? WHERE id = ?').run(
+    l, catId, logo ?? a.logo, act, prof, accord, a.id,
   );
+  if (accord !== a.accord_cadre) tracer(acteur, 'application:accord-cadre', { entite: 'application', entiteId: a.id, details: { exige: Boolean(accord) } });
   tracer(acteur, 'application:modifier', { entite: 'application', entiteId: a.id, details: { libelle: l, actif: act } });
 }
 
@@ -297,6 +308,10 @@ export function definirPerimetreReferent(acteur, login, applicationIds = []) {
   tracer(acteur, 'referent:perimetre', { entite: 'utilisateur', details: { login: l, applications: ids } });
 }
 
+/**
+ * @param {string} acteur
+ * @param {{ login: string, nom: string, role: string, motDePasse: string, matricule?: string, email?: string, applicationIds?: number[] }} compte
+ */
 export function creerUtilisateur(acteur, { login, nom, role, motDePasse, matricule, email, applicationIds = [] }) {
   const l = texte(login);
   if (!l || !texte(nom) || !motDePasse) throw new Error('Identifiant, nom et mot de passe requis.');
@@ -358,6 +373,11 @@ export function listerComptesAnnuaire() {
 const compterAdmins = (db) =>
   db.prepare("SELECT COUNT(*) n FROM utilisateurs WHERE role = 'admin' AND actif = 1").get().n;
 
+/**
+ * @param {string} acteur
+ * @param {string} login
+ * @param {{ nom?: string, role?: string, motDePasse?: string, matricule?: string, email?: string, actif?: boolean, applicationIds?: number[] }} champs
+ */
 export function modifierUtilisateur(acteur, login, { nom, role, motDePasse, matricule, email, actif, applicationIds = [] }) {
   const db = ouvrirDb();
   const u = db.prepare('SELECT * FROM utilisateurs WHERE login = ?').get(login);

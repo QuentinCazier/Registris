@@ -68,6 +68,7 @@ jobs:
     uses: ./.github/workflows/installateur-windows.yml
     with:
       publier: true
+    secrets: inherit
 
   image:
     runs-on: ubuntu-latest

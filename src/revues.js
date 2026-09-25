@@ -6,6 +6,10 @@ import { changerStatut } from './habilitations.js';
 
 export const DECISIONS = ['maintenue', 'retiree'];
 
+/**
+ * @param {string} acteur
+ * @param {{ libelle?: string, echeance?: string | null, applicationId?: number }} [campagne]
+ */
 export function ouvrirCampagne(acteur, { libelle, echeance = null, applicationId = 0 } = {}) {
   const nom = String(libelle ?? '').trim();
   if (!nom) throw new Error('Le libellé de la campagne est obligatoire.');

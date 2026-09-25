@@ -2,7 +2,7 @@
 
 import { config } from '../config.js';
 import { exigerAuth, peut, referentGereApplication } from '../roles.js';
-import { listerApplications, statistiques, listerHabilitations, listerDemandesDe } from '../habilitations.js';
+import { listerApplications, statistiques, listerHabilitations, listerDemandesDe, compterHabilitations } from '../habilitations.js';
 import { perimetresReferents, nomsActeurs, etatMiseEnRoute } from '../administration.js';
 import { journal, etatChaine } from '../audit.js';
 import { enCours } from '../revues.js';
@@ -10,6 +10,9 @@ import { demandesEnRetard } from '../relances.js';
 import { echap, ICONES, page, tag, bandeauErreur, barres, libelleAction, pluriel, dateFr } from '../ui.js';
 import { perimetreRevue } from './outils.js';
 import { tableauDemandes } from './demandes.js';
+import { demandesAApprouver } from '../accords.js';
+import { departsAConfirmer } from '../departs.js';
+import { titulairesSupplees } from '../suppleances.js';
 
 // Liste des étapes de mise en service, tant qu'il en reste une.
 export function blocMiseEnRoute() {
@@ -31,9 +34,12 @@ export function monter(app) {
         `<a class="rac" href="${href}"><span class="ic">${ICONES[icone]}</span>
           <span><span class="t">${titre}</span><span class="d">${desc}</span></span></a>`;
       const miennes = listerDemandesDe(u.login);
+      const aApprouver = demandesAApprouver(u.login).length;
       return res.send(
         page(req, 'Accueil',
-          `<div class="raccourcis">
+          `${aApprouver ? `<div class="bandeau b-warn">${ICONES.alerte}<div><div class="t">${pluriel(aApprouver, 'demande')} ${aApprouver >= 2 ? 'attendent' : 'attend'} votre accord</div>
+             <div class="d">Vous êtes responsable d'une unité fonctionnelle concernée.</div></div><a class="r" href="/approbations">Donner mon accord</a></div>` : ''}
+          <div class="raccourcis">
             ${peut(u.role, 'habilitation:creer') ? rac('/habilitations/nouvelle', 'plus', 'Demander un accès', 'Pour vous ou pour un collègue') : ''}
             ${rac('/mes-demandes', 'liste', 'Mes demandes', 'Voir où en sont vos demandes')}
             ${peut(u.role, 'habilitation:creer') ? rac('/depart', 'sortie', 'Signaler un départ', "Faire fermer les accès d'un collègue qui part") : ''}
@@ -73,6 +79,7 @@ export function monter(app) {
       </tr>`;
     };
 
+    const dansUneSemaine = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const campagne = enCours();
     const avecReferent = new Set([...perimetresReferents().values()].flat().map((a) => a.id));
     const sansReferent = listerApplications().filter((a) => !avecReferent.has(a.id)).length;
@@ -84,6 +91,24 @@ export function monter(app) {
         texte: (n) => `${pluriel(n, 'accès', '')} ${n >= 2 ? 'accordés' : 'accordé'} sans pièce justificative.`,
         lien: '/suivi?sans_preuve=1',
         libelle: 'Les voir et joindre les preuves',
+      },
+      {
+        n: compterHabilitations({ finAvant: dansUneSemaine, applicationIds: perimetreRevue(u) }),
+        texte: (n) => `${pluriel(n, 'accès', '')} ${n >= 2 ? 'temporaires arrivent' : 'temporaire arrive'} à échéance dans les 7 jours.`,
+        lien: '/suivi?temp=1&tri=fin&sens=asc',
+        libelle: 'Les voir',
+      },
+      {
+        n: departsAConfirmer().length,
+        texte: (n) => `${pluriel(n, 'départ')} ${n >= 2 ? 'détectés' : 'détecté'} par l'annuaire ou les RH : des accès restent ouverts.`,
+        lien: '/departs',
+        libelle: 'Les confirmer',
+      },
+      {
+        n: req.compteurs?.approbations ?? 0,
+        texte: (n) => `${pluriel(n, 'demande')} ${n >= 2 ? 'attendent' : 'attend'} votre accord de cadre.`,
+        lien: '/approbations',
+        libelle: 'Donner mon accord',
       },
       {
         n: enRetard,
@@ -107,12 +132,9 @@ export function monter(app) {
           }]
         : []),
     ]
-      .filter((p) => !p.droit || peut(u.role, p.droit))
-      .sort((a, b) => (b.n > 0 ? 1 : 0) - (a.n > 0 ? 1 : 0))
-      .map((p) => `<li><span class="ic${p.n ? '' : ' ok'}">${p.n}</span><div><p>${p.texte(p.n)}</p>${
-        p.n ? `<a href="${p.lien}">${p.libelle}</a>` : ''
-      }</div></li>`)
-      .join('');
+      .filter((p) => (!p.droit || peut(u.role, p.droit)) && p.n > 0)
+      .map((p) => `<li><span class="ic">${p.n}</span><div><p>${p.texte(p.n)}</p><a href="${p.lien}">${p.libelle}</a></div></li>`)
+      .join('') || '<li><span class="ic ok">0</span><div><p>Rien à signaler : aucune alerte en cours.</p></div></li>';
 
     const ouverts = s.parStatut.executee ?? 0;
     const sous = `Registre ${config.etablissement ? `du ${echap(config.etablissement)} : ` : ': '}<b>${pluriel(s.habilitations, 'demande')}</b> ${s.habilitations >= 2 ? 'enregistrées' : 'enregistrée'}, dont <b>${pluriel(ouverts, 'accès', '')} ${ouverts >= 2 ? 'ouverts' : 'ouvert'}</b>, `
@@ -123,6 +145,7 @@ export function monter(app) {
     res.send(
       page(req, 'Tableau de bord',
         `${peut(u.role, 'admin:gerer') ? blocMiseEnRoute() : ''}
+        ${titulairesSupplees(u.login).map((t) => `<div class="bandeau b-ok">${ICONES.users}<span>Vous remplacez ${echap(nomDe(t.titulaire))} jusqu'au ${echap(dateFr(t.au))} : ses demandes sont dans « À traiter ».</span></div>`).join('')}
         ${!voitAudit ? '' : chaine.valide
           ? `<div class="bandeau b-ok">${ICONES.bouclier}<div><div class="t">Journal d'audit vérifié</div>
                <div class="d">Aucune modification après coup sur les ${pluriel(chaine.entrees, 'opération')} ${chaine.entrees >= 2 ? 'enregistrées' : 'enregistrée'}.</div></div>

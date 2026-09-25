@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 
 import { config } from './config.js';
 import { ouvrirDb } from './db.js';
@@ -69,7 +69,7 @@ export async function sauvegarder({ destination = config.sauvegardesDir, acteur 
 
   await new Promise((resoudre, rejeter) => {
     const sortie = fs.createWriteStream(fichier);
-    const zip = archiver('zip', { zlib: { level: 6 } });
+    const zip = new ZipArchive({ zlib: { level: 6 } });
     sortie.on('close', resoudre);
     sortie.on('error', rejeter);
     zip.on('error', rejeter);
@@ -106,6 +106,10 @@ export function inspecter(cheminZip) {
 }
 
 // L'application doit être arrêtée, et une base existante n'est écrasée qu'avec `forcer`.
+/**
+ * @param {string} cheminZip
+ * @param {{ forcer?: boolean, cibles?: { dbPath?: string, preuvesDir?: string, logosDir?: string, ancragesDir?: string } }} [options]
+ */
 export function restaurer(cheminZip, { forcer = false, cibles = {} } = {}) {
   const c = {
     dbPath: cibles.dbPath ?? config.dbPath,

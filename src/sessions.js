@@ -29,6 +29,7 @@ export class MagasinSessions extends session.Store {
     }
   }
 
+  /** @param {(erreur?: any) => void} [cb] */
   set(sid, s, cb = () => {}) {
     try {
       ouvrirDb()
@@ -40,6 +41,7 @@ export class MagasinSessions extends session.Store {
     }
   }
 
+  /** @param {(erreur?: any) => void} [cb] */
   touch(sid, s, cb = () => {}) {
     try {
       ouvrirDb().prepare('UPDATE sessions SET expire = ? WHERE sid = ?').run(MagasinSessions.expiration(s), sid);
@@ -49,6 +51,7 @@ export class MagasinSessions extends session.Store {
     }
   }
 
+  /** @param {(erreur?: any) => void} [cb] */
   destroy(sid, cb = () => {}) {
     try {
       ouvrirDb().prepare('DELETE FROM sessions WHERE sid = ?').run(sid);

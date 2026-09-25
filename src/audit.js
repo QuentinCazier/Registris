@@ -77,6 +77,7 @@ export function enregistrerControle(acteur, resultat) {
 }
 
 // État de la chaîne pour l'affichage, depuis le dernier contrôle complet valide.
+/** @returns {{ valide: boolean, entrees: number, complet: boolean, controleLe: string | null, rupture?: number, raison?: string, depuis?: number, nouvelles?: number }} */
 export function etatChaine() {
   const db = ouvrirDb();
   const controle = dernierControle();
@@ -137,6 +138,7 @@ export function texteAncrage(a) {
 export function ancrer({ acteur = 'système', dossier = config.ancragesDir } = {}) {
   const db = ouvrirDb();
   const tete = teteDeChaine();
+  /** @type {Record<string, any>} */
   const a = { horodatage: new Date().toISOString(), ...tete, acteur: String(acteur) };
   a.empreinte = empreinteAncrage(a);
   a.fichier = null;

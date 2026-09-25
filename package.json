@@ -41,21 +41,35 @@
     "init": "node src/cli.js init",
     "demo": "node src/cli.js demo",
     "test": "node --test \"tests/*.test.js\"",
-    "audit": "npm audit --omit=dev --audit-level=high"
+    "audit": "npm audit --omit=dev --audit-level=high",
+    "lint": "eslint .",
+    "types": "tsc -p tsconfig.json",
+    "verifier": "npm run lint && npm run types && npm test",
+    "charge": "node scripts/charge.mjs"
   },
   "dependencies": {
-    "archiver": "^7.0.1",
-    "express": "^4.22.2",
+    "archiver": "^8.0.0",
+    "express": "^5.2.1",
     "express-session": "^1.19.0",
     "ldap-authentication": "^4.0.4",
-    "ldapts": "^9.0.0",
+    "ldapts": "^9.2.0",
     "multer": "^2.4.0",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^10.0.10"
   },
   "overrides": {
     "qs": "^6.15.4"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.19.0",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.6.2",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "typescript": "^7.0.2"
   }
 }

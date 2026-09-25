@@ -16,6 +16,8 @@ import { relancer } from './relances.js';
 import { notifier } from './mailer.js';
 import { creerApp, ecouter } from './serveur.js';
 import { chargerDemo } from './demo.js';
+import { entretien, planifierEntretien } from './entretien.js';
+import { purger } from './conservation.js';
 
 const USAGE = `Usage : registris <commande>
 
@@ -26,6 +28,8 @@ const USAGE = `Usage : registris <commande>
   verifier                          vérifie la chaîne d'audit, ses ancrages et l'intégrité du coffre
   ancrer                            dépose l'empreinte de tête de la chaîne hors de la base
   relancer [--simuler]              relance les demandes en attente depuis plus de RELANCE_JOURS
+  entretien                         demande la fermeture des accès temporaires échus (le serveur le fait seul chaque heure)
+  purger [--simuler]                applique CONSERVATION_ANNEES : identité des agents partis effacée, pièces supprimées
   sauvegarder [dossier]             archive ZIP : base, pièces, logos, ancrages, manifeste
   restaurer <zip> [--verifier] [--forcer]
                                     contrôle une archive, ou la redéploie (application arrêtée)
@@ -215,6 +219,7 @@ function servir() {
   for (const a of avertissements) console.warn(`Attention : ${a}`);
   initialiserSchema();
   const serveur = ecouter(creerApp());
+  planifierEntretien();
   serveur.on('listening', () => {
     console.log(`${config.nom} en écoute sur ${serveur.protocole}://${config.hote}:${config.port}`);
     console.log(`Authentification : ${config.authMode} · base : ${config.dbPath} · configuration : ${config.fichierConfig}`);
@@ -244,6 +249,18 @@ switch (commande) {
   case 'relancer':
     await relancerDemandes();
     break;
+  case 'purger': {
+    initialiserSchema();
+    const b = purger('système', { simuler: drapeaux.has('--simuler') });
+    console.log(`${b.simule ? 'Simulation : ' : ''}${b.agents} agent(s) anonymisé(s), ${b.pieces} pièce(s) supprimée(s), ${b.comptesAnnuaire} compte(s) de l'annuaire oublié(s), au-delà de ${b.annees} an(s).`);
+    break;
+  }
+  case 'entretien': {
+    initialiserSchema();
+    const bilan = await entretien();
+    console.log(`Accès temporaires échus : ${bilan.fermeturesEchues} fermeture(s) demandée(s).`);
+    break;
+  }
   case 'sauvegarder':
     await sauvegarderBase();
     break;

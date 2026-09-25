@@ -6,9 +6,10 @@ import { config } from '../config.js';
 import { exigerAuth, exigerDroit, peut, referentGereApplication } from '../roles.js';
 import {
   habilitationParId, changerStatut, libelleUfs, assigner, demanderRetrait, refuserRetrait,
-  modifierProfil, profilsProposes, PROFIL_A_PRECISER,
+  modifierProfil, profilsProposes, PROFIL_A_PRECISER, modifierEcheance,
 } from '../habilitations.js';
 import { emailUtilisateur, traitantsPossibles, nomsActeurs } from '../administration.js';
+import { cadresDe } from '../accords.js';
 import { getRoutage } from '../parametres.js';
 import {
   ajouterPreuve, preuveParId, cheminPreuve, verifierIntegrite, EXTENSIONS_ACCEPTEES,
@@ -17,6 +18,25 @@ import { historique, tracer } from '../audit.js';
 import { notifier } from '../mailer.js';
 import { echap, ICONES, page, pageErreur, tag, item, bandeauAlerte, libelleAction, depuis, dateFr } from '../ui.js';
 import { upload, cheminSur, nombre, peutConsulter } from './outils.js';
+
+// Accord du cadre en attente : qui peut le donner, et la saisie d'un accord obtenu par un autre canal.
+export function blocAccord(h, retour, { peutSaisir = false, nomDe = (l) => l } = {}) {
+  if (h.accord_cadre !== 'attente' || h.statut !== 'demandee') return '';
+  const cadres = cadresDe(h.id);
+  return `<div class="bandeau b-warn">${ICONES.alerte}<div><div class="t">En attente de l'accord du cadre</div>
+    <div class="d">${cadres.length
+      ? `L'accord est demandé à ${cadres.map((c) => echap(nomDe(c))).join(', ')}, responsable${cadres.length >= 2 ? 's' : ''} de l'UF.`
+      : "Aucun cadre n'est désigné pour les UF de cette demande : l'administrateur les désigne dans « Unités fonctionnelles »."}
+      La demande ne peut être validée qu'après cet accord.</div>
+    ${peutSaisir
+      ? `<form method="post" action="/approbations/${h.id}" class="ligne-motif" style="margin-top:8px;flex-wrap:wrap">
+          <input type="hidden" name="decision" value="accorder"><input type="hidden" name="hors_outil" value="1">
+          <input type="hidden" name="retour" value="${echap(retour)}">
+          <input name="motif" required maxlength="300" style="width:320px" placeholder="ex. accord de Mme Durand par courriel du 12/10"
+                 aria-label="Accord du cadre obtenu hors de l'outil : qui et comment">
+          <button class="btn btn-petit">Enregistrer l'accord reçu</button></form>`
+      : ''}</div></div>`;
+}
 
 // Le référent fixe le profil avant d'ouvrir l'accès ; ouvert d'office quand l'agent ne le connaissait pas.
 export function formulaireProfil(h, retour) {
@@ -43,12 +63,14 @@ export function monter(app, { verifierCsrf }) {
     if (!peutConsulter(u, h)) {
       return res.status(403).send(pageErreur(req, 'Accès refusé', 'Cette habilitation ne vous concerne pas.', '/mes-demandes'));
     }
+    const nomDe = nomsActeurs();
     const peutAgir = (droit) => peut(u.role, droit) && referentGereApplication(u, h.application_id);
     const bouton = (action, label, droit, classe = 'btn-ghost') => peutAgir(droit)
       ? `<form method="post" action="/habilitations/${h.id}/${action}"><button class="btn ${classe}">${label}</button></form>` : '';
-    const actions = [
+    const bloquee = h.accord_cadre === 'attente' && h.statut === 'demandee';
+    const actions = bloquee ? '' : [
       h.statut === 'demandee' ? bouton('valider', 'Valider', 'habilitation:valider', 'btn-primary') : '',
-      ['demandee', 'validee'].includes(h.statut) ? bouton('executer', 'Marquer exécutée', 'habilitation:executer', h.statut === 'validee' ? 'btn-primary' : 'btn-ghost') : '',
+      ['demandee', 'validee'].includes(h.statut) ? bouton('executer', "Marquer l'accès ouvert", 'habilitation:executer', h.statut === 'validee' ? 'btn-primary' : 'btn-ghost') : '',
     ].join('');
     const revocation = h.statut === 'executee' && !h.retrait_demande_le && peutAgir('habilitation:revoquer')
       ? `<form method="post" action="/habilitations/${h.id}/revoquer" class="carte" style="margin-top:14px;max-width:560px">
@@ -91,7 +113,6 @@ export function monter(app, { verifierCsrf }) {
             : `<div class="bloc-pied">En attente d'un référent de ${echap(h.app_libelle)}.</div>`}
         </div>`
       : '';
-    const nomDe = nomsActeurs();
     const preuves = h.preuves.length
       ? h.preuves.map((p) => {
           const v = verifierIntegrite(p);
@@ -102,8 +123,9 @@ export function monter(app, { verifierCsrf }) {
               <div class="m">Jointe le ${echap(dateFr(p.cree_le))} par ${echap(nomDe(p.ajoutee_par))}<span class="empreinte-complete"> · SHA-256 ${echap(p.sha256)}</span></div>
             </div>
             <div class="d">
-              ${v.intacte ? '<span class="tag t-executee" title="Le fichier est identique à celui qui a été joint">vérifiée</span>' : '<span class="tag t-revoquee">modifiée depuis le dépôt</span>'}
-              <a class="btn btn-petit" href="/preuves/${p.id}">Télécharger<span class="sr"> ${echap(p.nom_origine)}</span></a>
+              ${v.purgee ? '<span class="tag t-revoquee">supprimée, durée de conservation atteinte</span>'
+                : v.intacte ? '<span class="tag t-executee" title="Le fichier est identique à celui qui a été joint">vérifiée</span>' : '<span class="tag t-revoquee">modifiée depuis le dépôt</span>'}
+              ${v.purgee ? '' : `<a class="btn btn-petit" href="/preuves/${p.id}">Télécharger<span class="sr"> ${echap(p.nom_origine)}</span></a>`}
             </div></div>`;
         }).join('')
       : '<div class="vide" style="margin:16px">Aucune pièce jointe. Joignez le mail de demande, la validation du responsable ou une capture.</div>';
@@ -138,13 +160,25 @@ export function monter(app, { verifierCsrf }) {
             ${item('Validée le', echap(dateFr(h.date_validation) || '-'))}
             ${item('Ouverte le', echap(dateFr(h.date_realisation) || '-'))}
             ${item('Fermée le', echap(dateFr(h.date_revocation) || '-'))}
+            ${item('Accès temporaire', h.date_fin ? `jusqu'au ${echap(dateFr(h.date_fin))}` : 'non, sans date de fin')}
+            ${h.accord_cadre && h.accord_cadre !== 'attente' ? item('Accord du cadre', `${h.accord_cadre === 'accorde' ? 'donné' : 'refusé'} par ${echap(nomDe(h.accord_par))} le ${echap(dateFr(h.accord_le))}`) : ''}
             ${item('Pièces justificatives', String(h.preuves.length))}
             ${h.assigne_a ? item('Prise en charge par', `<span class="assigne"><b>${echap(nomDe(h.assigne_a))}</b></span>`) : ''}
           </div>
           ${h.commentaire ? `<div class="bloc-pied" style="white-space:pre-wrap">${echap(h.commentaire)}</div>` : ''}
         </div>
         ${fermetureEnCours}
+        ${blocAccord(h, `/habilitations/${h.id}`, { peutSaisir: peutAgir('habilitation:valider'), nomDe })}
         ${peutAgir('habilitation:valider') ? formulaireProfil(h, `/habilitations/${h.id}`) : ''}
+        ${peutAgir('habilitation:valider') && ['demandee', 'validee', 'executee'].includes(h.statut) && !h.retrait_demande_le
+          ? `<details class="facultatif pas-impr" style="margin:0 0 18px"><summary>${h.date_fin ? 'Modifier la date de fin' : 'Rendre cet accès temporaire'}</summary><div>
+              <form method="post" action="/habilitations/${h.id}/echeance" class="ligne-motif" style="flex-wrap:wrap">
+                <label class="sr" for="echeance-${h.id}">Date de fin de l'accès</label>
+                <input id="echeance-${h.id}" name="date_fin" type="date" value="${echap(h.date_fin ?? '')}" style="width:190px">
+                <button class="btn">Enregistrer</button>
+                <span class="champ-aide" style="margin:0">Laisser vide pour un accès sans date de fin.</span>
+              </form></div></details>`
+          : ''}
         ${actions ? `<div class="actions-ligne">${actions}</div>` : ''}
         ${refus}
         ${demandeFermeture}
@@ -211,6 +245,21 @@ export function monter(app, { verifierCsrf }) {
       return res.status(400).send(pageErreur(req, 'Profil non enregistré', e.message, `/habilitations/${h.id}`));
     }
     res.redirect(cheminSur(req.body.retour, `/habilitations/${h.id}`));
+  });
+
+  app.post('/habilitations/:id/echeance', exigerAuth, exigerDroit('habilitation:valider'), (req, res) => {
+    const u = req.session.utilisateur;
+    const h = habilitationParId(nombre(req.params.id));
+    if (!h) return res.status(404).send(pageErreur(req, 'Introuvable', 'Habilitation introuvable.'));
+    if (!referentGereApplication(u, h.application_id)) {
+      return res.status(403).send(pageErreur(req, 'Accès refusé', `Vous n'êtes pas référent de l'application « ${h.app_libelle} ».`, `/habilitations/${h.id}`));
+    }
+    try {
+      modifierEcheance(u.login, h.id, req.body.date_fin);
+    } catch (e) {
+      return res.status(400).send(pageErreur(req, 'Date non enregistrée', e.message, `/habilitations/${h.id}`));
+    }
+    res.redirect(`/habilitations/${h.id}`);
   });
 
   // Demander la fermeture : ouverte à tout agent, exécutée par le seul référent.

@@ -29,6 +29,19 @@ const FICHES = [
       "Ouvrez l'accès dans l'application, puis cliquez sur « Marquer l'accès ouvert ».",
       "Joignez le mail de demande ou la validation du cadre : c'est la preuve présentée en audit.",
       "Une fermeture est demandée ? Fermez le compte dans l'application, puis cliquez sur « Fermer l'accès ».",
+      "« Départs détectés » liste les agents partis qui gardent des accès : confirmez, ou écartez avec un motif.",
+      "Avant un congé, déclarez votre absence en haut de page : votre suppléant reçoit vos demandes.",
+    ],
+  },
+  {
+    role: 'cadre',
+    titre: 'Cadre de service',
+    pour: "Le responsable d'une unité fonctionnelle, quand certaines applications exigent son accord.",
+    etapes: [
+      "Une demande qui concerne votre UF apparaît dans « Accords à donner », et un bandeau vous le signale à l'accueil.",
+      "Lisez qui demande quoi, puis donnez votre accord, ou refusez avec un motif que l'agent lira.",
+      "Une demande que vous déposez vous-même pour votre équipe porte déjà votre accord.",
+      "Un accès temporaire ? Indiquez la date de fin dans la demande : la fermeture sera demandée d'elle-même.",
     ],
   },
   {
@@ -49,7 +62,10 @@ const FICHES = [
     etapes: [
       "Suivez la « Mise en route » du tableau de bord : catégories, applications, référents, services, courriels.",
       "« Importer un tableur » déclare d'un coup les applications, leurs référents, leurs profils et les unités fonctionnelles.",
-      "Dans chaque application, listez les profils proposés aux agents.",
+      "Dans chaque application, listez les profils proposés aux agents, et cochez « Accord du cadre » si elle l'exige.",
+      "Dans « Unités fonctionnelles », désignez les cadres qui donnent leur accord.",
+      "« Départs détectés » compare les accès à un fichier RH ; l'annuaire est interrogé chaque jour.",
+      "« API » crée un jeton par outil (GLPI, supervision) qui lit le registre sans pouvoir le modifier.",
       "« Comptes et référents » rattache chaque référent à ses applications.",
       "Les sauvegardes, l'ancrage et les relances se planifient côté serveur : voir le guide de déploiement.",
     ],
@@ -59,7 +75,7 @@ const FICHES = [
 export function monter(app) {
   app.get('/aide', exigerAuth, (req, res) => {
     const role = req.session.utilisateur.role;
-    const fiches = [...FICHES].sort((a, b) => (b.role === role) - (a.role === role));
+    const fiches = [...FICHES].sort((a, b) => Number(b.role === role) - Number(a.role === role));
     res.send(
       page(req, 'Aide',
         `<div class="impr"><div class="t">${echap(config.nom)}${config.etablissement ? ` · ${echap(config.etablissement)}` : ''}</div>
