@@ -105,6 +105,35 @@ mainteneurs, mais un ticket ici pour demander la mise à jour est bienvenu).
   des comptes vus à la connexion : un référent qui ne s'est jamais connecté n'y
   figure que par un périmètre déclaré, et sans courriel.
 
+## Revue de sécurité de la version 0.4.0
+
+Surfaces nouvelles et ce qui les protège, chaque point couvert par des tests :
+
+| Surface | Protection |
+|---|---|
+| API en lecture `/api/v1` | jeton porteur obligatoire, aléatoire de 192 bits, seule son empreinte SHA-256 est conservée ; lecture seule (405 sur toute autre méthode) ; aucune session ni cookie ; réponses non mises en cache ; création et révocation au journal |
+| Affichage du jeton neuf | une seule fois, dans la réponse à sa création, jamais en session ni en base |
+| Accords du cadre | seul un responsable d'une UF de la demande peut statuer ; l'accord obtenu hors de l'outil est réservé au référent de l'application et doit dire qui et comment ; tant que l'accord manque, valider et ouvrir sont refusés côté serveur |
+| Suppléances | un référent ne délègue que son propre périmètre ; le suppléant doit être référent ou administrateur ; le périmètre élargi s'éteint à la date de fin sans reconnexion |
+| Départs détectés | rien ne se ferme sans confirmation ; un fichier des présents qui ferait sortir plus de la moitié des agents est refusé ; l'import RH et l'interrogation de l'annuaire sont réservés à l'administrateur |
+| Import de tableur | réservé à l'administrateur, identifiants de référents contrôlés, rien n'est supprimé, chaque import au journal |
+| Conservation | purge en ligne de commande seulement, simulable, bilan au journal ; une pièce purgée n'est plus téléchargeable et n'est pas une anomalie du coffre |
+
+Choix assumés :
+
+- La suggestion de collègues (demande pour autrui, signalement de départ) montre
+  à un agent le nom et le matricule des agents du registre qui correspondent à
+  deux lettres au moins, huit au plus, jamais leurs accès. C'est le prix d'une
+  saisie par le nom plutôt que par le matricule.
+- Les appels à l'API ne sont pas inscrits un par un au journal ; la page des
+  jetons garde la date du dernier appel et leur nombre.
+- Le journal d'audit n'est pas purgé par la conservation : il est la preuve,
+  voir [docs/RGPD.md](docs/RGPD.md).
+
+Montée de version vérifiée : une base créée par la 0.3.1, avec ses données de
+démonstration, ouverte par la 0.4.0, garde toutes ses lignes, sa chaîne d'audit
+et son coffre intègres, et chaque page répond sans erreur pour chaque rôle.
+
 ## Revue de sécurité de la version 0.3.0
 
 Points corrigés, tous couverts par des tests :
