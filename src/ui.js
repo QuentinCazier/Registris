@@ -153,6 +153,7 @@ export const STYLE = `
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--fond);color:var(--encre);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
 a{color:var(--accent-texte);text-decoration:none}
 a:hover{text-decoration:underline}
 .mono,code{font-family:var(--mono);font-feature-settings:"tnum" 1}
@@ -186,15 +187,15 @@ a:hover{text-decoration:underline}
 .haut .sortie{color:var(--sur-accent);opacity:.82;font-size:12.5px}
 .haut .r1 .btn-p{background:var(--blanc);color:var(--accent);border-color:var(--blanc)}
 .haut .r1 .btn-p:hover{background:var(--gris)}
-.haut .r2{display:flex;gap:2px;padding:0 22px;overflow-x:auto}
+.haut .r2{display:flex;gap:2px;padding:0 22px;overflow-x:auto;overflow-y:hidden}
 .haut .r2 a{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:13.5px;color:var(--encre-2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .haut .r2 a svg{width:16px;height:16px;color:var(--encre-3)}
 .haut .r2 a:hover{color:var(--encre);text-decoration:none}
 .haut .r2 a.actif{color:var(--accent-texte);font-weight:600;border-bottom-color:var(--accent)}
 .haut .r2 a.actif svg{color:var(--accent)}
-.haut .r2 .n{font-family:var(--mono);font-size:11px;background:var(--gris);color:var(--encre-2);border-radius:20px;padding:1px 7px}
+.haut .r2 .n{font-size:11px;font-weight:700;background:var(--gris);color:var(--encre-2);border-radius:20px;padding:1px 7px;font-feature-settings:"tnum" 1}
 .haut .r2 a.actif .n{background:var(--accent-clair);color:var(--accent-texte)}
-.sous-nav{display:flex;gap:4px;padding:9px 22px;background:var(--gris-2);border-top:1px solid var(--filet);overflow-x:auto}
+.sous-nav{display:flex;gap:4px;padding:9px 22px;background:var(--gris-2);border-top:1px solid var(--filet);overflow-x:auto;overflow-y:hidden}
 .sous-nav a{padding:5px 11px;font-size:13px;color:var(--encre-2);border-radius:20px;white-space:nowrap}
 .sous-nav a:hover{background:var(--gris);text-decoration:none}
 .sous-nav a.actif{background:var(--accent);color:var(--sur-accent);font-weight:600}
@@ -205,7 +206,7 @@ a:hover{text-decoration:underline}
 .page-tete{display:flex;align-items:flex-start;gap:20px;margin-bottom:20px;flex-wrap:wrap}
 .page-tete h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
 .page-tete .sous{font-size:13px;color:var(--encre-2)}
-.page-tete .sous b{font-family:var(--mono);font-size:12.5px;font-weight:500;color:var(--encre-2)}
+.page-tete .sous b{font-weight:600;color:var(--encre);font-feature-settings:"tnum" 1}
 .page-tete .a{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
 .page-tete .a form{display:inline}
 section{margin-bottom:22px}
@@ -221,6 +222,7 @@ section > h2{font-size:15px;font-weight:700;margin:26px 0 10px;letter-spacing:-.
 .btn-danger{color:var(--anomalie);border-color:var(--anomalie-filet)}
 .btn-danger:hover{background:var(--anomalie-fond)}
 .btn-petit{padding:5px 11px;min-height:28px;font-size:12.5px;box-shadow:none}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 
 /* Blocs */
 .bloc,.carte{background:var(--blanc);border:1px solid var(--filet);border-radius:10px;box-shadow:var(--ombre);margin-bottom:18px}
@@ -228,7 +230,7 @@ section > h2{font-size:15px;font-weight:700;margin:26px 0 10px;letter-spacing:-.
 .carte{padding:18px 20px}
 .bloc-tete{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--filet);flex-wrap:wrap}
 .bloc-tete h2{font-size:14px;font-weight:700;margin:0;letter-spacing:-.01em}
-.bloc-tete .c{font-family:var(--mono);font-size:11.5px;color:var(--encre-3)}
+.bloc-tete .c{font-size:12px;color:var(--encre-3);font-feature-settings:"tnum" 1}
 .bloc-tete .d{margin-left:auto;font-size:12.5px;display:flex;align-items:center;gap:10px}
 .bloc-pied{padding:10px 16px;border-top:1px solid var(--filet);font-size:12.5px;color:var(--encre-2);background:var(--gris-2)}
 .colonnes{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:18px;align-items:start}
@@ -307,7 +309,7 @@ details.bloc[open] > summary h2::before{content:"▾ "}
 /* Sélection multiple au catalogue */
 .choix{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:6px 10px;min-height:28px;border:1px solid var(--filet-fort);border-radius:7px;cursor:pointer;background:var(--blanc)}
 .choix:hover{background:var(--gris-2)}
-.choix input{margin:0;width:15px;height:15px}
+.choix input{margin:0;width:15px;height:15px;min-height:0;padding:0}
 .choix:has(input:checked){border-color:var(--accent);background:var(--accent-clair);color:var(--accent-texte)}
 .barre-choix{position:sticky;bottom:0;display:flex;align-items:center;gap:14px;justify-content:flex-end;padding:12px 16px;margin-top:16px;background:var(--blanc);border:1px solid var(--filet);border-radius:10px;box-shadow:0 -2px 10px rgba(17,20,24,.06)}
 .barre-choix span{font-size:13px;color:var(--encre-2)}
@@ -349,7 +351,7 @@ details.bloc[open] > summary h2::before{content:"▾ "}
 .ecritures{list-style:none;margin:0;padding:0}
 .ecritures li{display:flex;gap:12px;align-items:baseline;padding:9px 16px;border-bottom:1px solid var(--filet);font-size:12.5px}
 .ecritures li:last-child{border-bottom:0}
-.ecritures .h{font-family:var(--mono);font-size:11.5px;color:var(--encre-3);white-space:nowrap}
+.ecritures .h{font-size:12px;color:var(--encre-3);white-space:nowrap;font-feature-settings:"tnum" 1}
 .ecritures .a{color:var(--encre-2)}
 .ecritures .a b{font-weight:700;color:var(--encre)}
 
@@ -358,7 +360,7 @@ details.bloc[open] > summary h2::before{content:"▾ "}
 .onglets a{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--encre-2);background:var(--blanc);border:1px solid var(--filet);border-radius:20px}
 .onglets a:hover{border-color:var(--filet-fort);text-decoration:none}
 .onglets a.actif{background:var(--accent);border-color:var(--accent);color:var(--sur-accent)}
-.onglets a .c{font-family:var(--mono);font-size:11px;opacity:.75}
+.onglets a .c{font-size:11px;opacity:.75;font-feature-settings:"tnum" 1}
 .filtres{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
 .filtres > div{min-width:170px}
 .filtres label{margin:0 0 4px}
@@ -392,7 +394,7 @@ form .actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
 .piece .ic{width:32px;height:32px;border-radius:7px;background:var(--gris);color:var(--encre-2);display:grid;place-items:center;flex:none}
 .piece .ic svg{width:16px;height:16px}
 .piece .f{font-weight:600}
-.piece .m{font-family:var(--mono);font-size:11.5px;color:var(--encre-3)}
+.piece .m{font-size:12px;color:var(--encre-3)}
 .piece .d{margin-left:auto;display:flex;align-items:center;gap:14px;flex:none}
 .depot{display:flex;align-items:center;gap:11px;padding:13px 16px;border-top:1px dashed var(--filet-fort);font-size:12.5px;color:var(--encre-3)}
 .depot svg{width:17px;height:17px;flex:none}
@@ -404,7 +406,7 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
 .fil li{position:relative;padding:8px 16px 8px 46px;font-size:13px}
 .fil li::after{content:"";position:absolute;left:23px;top:13px;width:9px;height:9px;border-radius:50%;background:var(--blanc);border:2px solid var(--accent)}
 .fil .e b{font-weight:700}
-.fil .q{font-family:var(--mono);font-size:11.5px;color:var(--encre-3);margin-left:8px}
+.fil .q{font-size:12px;color:var(--encre-3);margin-left:8px;font-feature-settings:"tnum" 1}
 .fil .emp{display:block;font-family:var(--mono);font-size:11px;color:var(--encre-3);margin-top:2px}
 .histo{margin:0;padding:0;list-style:none}
 .histo li{display:grid;grid-template-columns:160px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--filet);font-size:13px}
@@ -416,6 +418,8 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
 .cat-tabs a{padding:6px 12px;font-size:13px;font-weight:600;color:var(--encre-2);background:var(--blanc);border:1px solid var(--filet);border-radius:20px}
 .cat-tabs a:hover{border-color:var(--filet-fort);text-decoration:none}
 .cat-tabs a.actif{background:var(--accent);border-color:var(--accent);color:var(--sur-accent)}
+.cat-compte{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;margin-left:6px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:700;background:var(--accent-clair);color:var(--accent-texte)}
+.cat-tabs a.actif .cat-compte{background:var(--blanc);color:var(--accent-texte)}
 .cat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .srv{display:flex;flex-direction:column;background:var(--blanc);border:1px solid var(--filet);border-radius:10px;padding:16px;box-shadow:var(--ombre)}
 .srv:hover{border-color:var(--filet-fort)}
@@ -427,6 +431,52 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
 .srv .n{font-weight:700;font-size:14px;line-height:1.3;margin-bottom:3px}
 .srv .c{font-size:12px;color:var(--encre-3);margin-bottom:14px}
 .srv .b{margin-top:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* Catalogue : la carte entière se coche */
+.srv-choix{position:relative;cursor:pointer;margin:0;font-weight:400;transition:border-color .12s,background .12s}
+.srv-choix input{position:absolute;top:14px;right:14px;width:20px;height:20px;min-height:0;padding:0;margin:0;accent-color:var(--accent)}
+.srv-choix .n,.srv-choix .c,.srv-choix .etat{display:block}
+.srv-choix .ico{margin-bottom:12px}
+.srv-choix .etat{margin-top:auto;padding-top:10px;font-size:12.5px;font-weight:600;color:var(--encre-3)}
+.srv-choix .etat .oui{display:none}
+.srv-choix:has(input:checked){border-color:var(--accent);background:var(--accent-clair);box-shadow:0 0 0 1px var(--accent)}
+.srv-choix:has(input:checked) .etat{color:var(--accent-texte)}
+.srv-choix:has(input:checked) .etat .oui{display:inline}
+.srv-choix:has(input:checked) .etat .non{display:none}
+.srv-choix:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.recherche-catalogue{max-width:520px;margin:0 0 14px}
+.recherche-catalogue input{font-size:14.5px;padding:10px 13px}
+.aucun-resultat{margin-top:6px}
+.barre-choix .indice{color:var(--encre-3)}
+/* Sélecteur d'UF : une liste à cocher filtrable, pas un Ctrl+clic */
+.liste-ufs{max-height:210px;overflow:auto;border:1px solid var(--filet-fort);border-radius:7px;background:var(--blanc);margin-top:6px}
+.liste-ufs label{display:flex;align-items:center;gap:9px;margin:0;padding:7px 11px;font-weight:400;font-size:13.5px;border-bottom:1px solid var(--filet);cursor:pointer}
+.liste-ufs label:last-child{border-bottom:0}
+.liste-ufs label:hover{background:var(--gris-2)}
+.liste-ufs input{width:16px;height:16px;min-height:0;padding:0;margin:0;flex:none}
+.liste-ufs label:has(input:checked){background:var(--accent-clair)}
+.liste-ufs .code{font-variant-numeric:tabular-nums;color:var(--encre-2);min-width:44px}
+details.facultatif{margin-top:16px;border:1px solid var(--filet);border-radius:8px;background:var(--gris-2)}
+details.facultatif>summary{cursor:pointer;padding:10px 13px;font-weight:600;font-size:13px}
+details.facultatif>div{padding:0 13px 13px}
+.profil-autre{margin-top:8px}
+/* Mise en route */
+.etapes{list-style:none;margin:0;padding:0}
+.etapes li{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--filet);font-size:13.5px}
+.etapes li:last-child{border-bottom:0}
+.etapes .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;font-size:12.5px;font-weight:700;background:var(--accent-clair);color:var(--accent-texte)}
+.etapes li.fait .num{background:var(--fait-fond);color:var(--fait)}
+.etapes li.fait .t{color:var(--encre-2);text-decoration:line-through;text-decoration-color:var(--filet-fort)}
+.etapes .t{font-weight:600}
+.etapes .d{font-size:12.5px;color:var(--encre-3)}
+.etapes a.btn{margin-left:auto;flex:none}
+/* Aide */
+.aide-roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.aide-roles h2{font-size:16px;margin:0 0 4px}
+.aide-roles .pour{font-size:12.5px;color:var(--encre-3);margin:0 0 12px}
+.aide-roles ol{margin:0;padding-left:20px}
+.aide-roles li{margin:0 0 9px;font-size:13.5px}
+.aide-roles .carte.moi{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.haut .aide-lien{color:var(--sur-accent);opacity:.82;font-size:12.5px}
 .srv-tete{display:flex;align-items:center;gap:14px;margin-bottom:18px}
 .srv-tete h2{letter-spacing:-.015em;font-size:17px;margin:0}
 .srv-tete .c{font-size:12.5px;color:var(--encre-3);margin-top:2px}
@@ -456,7 +506,7 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
 .file{border-right:1px solid var(--filet);background:var(--blanc);display:flex;flex-direction:column;min-height:0}
 .file-tete{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--filet)}
 .file-tete h2{font-size:14px;font-weight:700;margin:0}
-.file-tete .c{font-family:var(--mono);font-size:11.5px;color:var(--encre-3)}
+.file-tete .c{font-size:12px;color:var(--encre-3)}
 .file-tete .tri{margin-left:auto;font-size:12.5px;color:var(--encre-3)}
 .file-filtres{display:flex;gap:4px;padding:8px 16px;border-bottom:1px solid var(--filet);background:var(--gris)}
 .file-filtres a{font-size:12.5px;padding:4px 10px;border-radius:6px;color:var(--encre-2);min-height:26px;display:inline-flex;align-items:center}
@@ -499,6 +549,12 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
 }
 @media (max-width:640px){
   .cat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .haut .r2{flex-wrap:wrap;overflow:visible;padding-block:4px}
+  .haut .r2 a{padding:7px 10px}
+  .haut .r2 a.actif{border-bottom-color:transparent;background:var(--accent-clair);border-radius:7px}
+  .sous-nav{flex-wrap:wrap;overflow:visible}
+  .etapes li{flex-wrap:wrap}
+  .etapes a.btn{margin-left:38px}
   .paires{grid-template-columns:1fr}
   .haut .qui{display:none}
 }
@@ -506,7 +562,7 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
 /* Le dossier de preuve finit souvent sur papier ou en PDF chez l'auditeur. */
 .impr{display:none}
 @media print{
-  .haut,.page-tete .a,.depot,.evitement,.onglets,.filtres,.bloc-pied a,.bloc-tete .d,.file,form,.btn,td.acts{display:none}
+  .haut,.page-tete .a,.depot,.evitement,.onglets,.filtres,.bloc-pied a,.bloc-tete .d,.file,form,.btn,td.acts,.pas-impr{display:none}
   body{background:#fff;font-size:11pt}
   .page{max-width:none;padding:0}
   .impr{display:block;border-bottom:1.5px solid #111418;padding-bottom:8px;margin-bottom:16px}
@@ -521,6 +577,8 @@ code.hash{font-family:var(--mono);font-size:11.5px;color:var(--encre-2);backgrou
   .empreinte-complete{display:inline!important;word-break:break-all}
   .dossier{overflow:visible;padding:0}
   .boite{display:block;height:auto}
+  .aide-roles{display:block}
+  .aide-roles section{break-after:page;border:0}
 }
 .empreinte-complete{display:none}
 `;
@@ -554,6 +612,7 @@ const SOUS_SECTIONS = {
   ],
   admin: [
     { href: '/admin/applications', libelle: 'Applications' },
+    { href: '/admin/import', libelle: 'Importer un tableur' },
     { href: '/admin/bibliotheque', libelle: 'Bibliothèque' },
     { href: '/admin/categories', libelle: 'Catégories' },
     { href: '/admin/packs', libelle: 'Packs nouvel arrivant' },
@@ -636,6 +695,7 @@ ${liensTete()}
       ${nouvelle}
       <div class="qui"><b>${echap(u?.nom ?? '')}</b><span>${LIBELLES_ROLE[role] ?? ''}</span></div>
       <span class="pastille" aria-hidden="true">${echap(initiales(u?.nom))}</span>
+      <a class="aide-lien" href="/aide"${req.path === '/aide' ? ' aria-current="page"' : ''}>Aide</a>
       <a class="sortie" href="/deconnexion">Déconnexion</a>
     </div>
   </div>
@@ -658,7 +718,7 @@ export function pageConnexion(req, { erreur = '' } = {}) {
   const c = couleursEtablissement();
   const styleLogin = `
     body{display:grid;place-items:center;min-height:100vh;background:var(--fond);padding:24px}
-    .boite{width:100%;max-width:400px}
+    .boite-connexion{width:100%;max-width:400px}
     .tete{text-align:center;margin-bottom:22px}
     .tete .mk{display:block;margin:0 auto 14px}
     .tete .mk svg{width:56px;height:56px;color:var(--accent)}
@@ -679,7 +739,7 @@ export function pageConnexion(req, { erreur = '' } = {}) {
 ${liensTete()}
 <title>Connexion · ${echap(config.nom)}</title>
 <style>${STYLE}:root{--accent:${c.accent};--accent-2:${c.accentSombre};--accent-clair:${c.accentClair};--accent-texte:${c.accentTexte};--sur-accent:${c.surAccent}}${styleLogin}</style></head>
-<body><div class="boite">
+<body><div class="boite-connexion">
   <div class="tete"><span class="mk">${glyphe()}</span>
     <h1>${echap(config.nom)}</h1>
     <p>${echap(config.etablissement || "Registre des habilitations et coffre à preuves d'audit")}</p></div>
@@ -727,10 +787,11 @@ export const LIB_ACTION = {
   'habilitation:revoquer': "a révoqué l'accès",
   'habilitation:refuser': 'a refusé la demande',
   'habilitation:assigner': 'a confié la demande',
+  'habilitation:profil': 'a précisé le profil demandé',
   'habilitation:desassigner': 'a rendu la demande à la file',
   'retrait:demander': 'a demandé la fermeture de l’accès',
   'retrait:refuser': 'a refusé la fermeture',
-  'preuve:ajouter': 'a déposé une pièce au coffre',
+  'preuve:ajouter': 'a joint une pièce justificative',
   'preuve:consulter': 'a téléchargé une pièce',
   'export:audit': 'a exporté un dossier de preuves',
   'audit:controler': 'a lancé un contrôle complet de la chaîne',
@@ -768,6 +829,8 @@ export const LIB_ACTION = {
   'referent:perimetre': "a modifié le périmètre d'un référent",
   'parametre:maj': 'a modifié un paramètre',
   'sauvegarde:creee': 'a créé une sauvegarde',
+  'import:applications': 'a importé des applications',
+  'import:ufs': 'a importé des unités fonctionnelles',
   'auth:succes': "s'est connecté",
   'auth:echec': 'a échoué à se connecter',
   'auth:bloque': 'a été bloqué après plusieurs échecs',
@@ -780,6 +843,25 @@ export const libelleAction = (action) =>
   `<span title="${echap(action)}">${echap(LIB_ACTION[action] ?? action)}</span>`;
 
 export const tag = (statut) => `<span class="tag t-${echap(statut)}">${echap(LIB_STATUT[statut] ?? statut)}</span>`;
+
+// 2026-09-25 devient 25/09/2026 : la forme que tout le monde lit sans effort.
+export const dateFr = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+};
+
+// Où en est la demande, dit comme on le dirait au guichet.
+export function etapeLisible(h, { motifRefus = '', nomDe = (l) => l } = {}) {
+  const app = h.app_libelle ?? "l'application";
+  if (h.statut === 'demandee') {
+    return h.assigne_a ? `En cours d'examen par ${nomDe(h.assigne_a)}` : `En attente de validation par le référent ${app}`;
+  }
+  if (h.statut === 'validee') return `Validée, en attente d'ouverture dans ${app}`;
+  if (h.statut === 'executee') return h.retrait_demande_le ? 'Accès ouvert, fermeture demandée' : 'Accès ouvert';
+  if (h.statut === 'revoquee') return 'Accès fermé';
+  if (h.statut === 'refusee') return motifRefus ? `Refusée : ${motifRefus}` : 'Refusée';
+  return LIB_STATUT[h.statut] ?? h.statut;
+}
 export const tagRole = (role) => `<span class="tag r-${echap(role)}">${echap(LIBELLES_ROLE[role] ?? role)}</span>`;
 // Faute de logo, un monogramme dont la teinte est tirée du code.
 export const teinteCode = (code) => {

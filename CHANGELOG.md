@@ -1,5 +1,43 @@
 # Journal des versions
 
+## Non publié
+
+- Nouvelle demande : les onglets de catégories ne rechargent plus la page. Une
+  sélection faite dans un onglet est conservée quand on passe à un autre, ce qui
+  permet de demander par exemple GAM et DPI en une seule demande groupée. Chaque
+  onglet affiche le nombre d'applications cochées, et la barre du bas les nomme.
+- Nouvelle demande : la carte entière d'une application se coche, un seul
+  bouton « Continuer » mène au formulaire, une recherche retrouve une
+  application par son nom dans toutes les catégories.
+- Profil demandé : l'agent le choisit dans une liste (profils déclarés par
+  l'administrateur, puis ceux déjà accordés), ou répond « Je ne sais pas ». Le
+  référent le précise alors avant de valider ; la modification est tracée.
+- Services : les unités fonctionnelles se cochent dans une liste filtrable, et
+  celles de la dernière demande de l'agent sont cochées d'office.
+- La pièce justificative est repliée dans le formulaire de l'agent.
+- « Mes demandes » et l'accueil de l'agent disent où en est chaque demande
+  (« En attente de validation par le référent Paie ») et affichent le motif
+  d'un refus. L'accueil de l'agent montre ses dernières demandes.
+- « À traiter » : une fermeture demandée propose « Fermer l'accès » au lieu
+  d'« Exécuter ».
+- Les historiques, l'activité récente et le journal d'audit nomment les
+  personnes au lieu d'afficher leur identifiant. Les dates sont au format
+  jour/mois/année.
+- Le vocabulaire d'audit (écritures scellées, coffre, empreintes) quitte les
+  écrans des agents et des référents ; il reste dans « Preuves et audit ».
+- Signaler un départ, demander pour un collègue : l'agent se retrouve en tapant
+  son nom.
+- Administration : une liste « Mise en route » guide les premiers réglages ;
+  « Supprimer » quitte la liste des applications pour la fiche de chacune ;
+  « Importer un tableur » déclare en une fois les applications, leurs
+  catégories, référents et profils, ainsi que les unités fonctionnelles.
+- Menu lisible sur téléphone, chiffres des phrases dans la police du texte.
+- Page « Aide » : une fiche imprimable par rôle.
+- Page de connexion : le formulaire n'est plus écrasé sur les écrans de plus de
+  900 px (son cadre réutilisait la classe `.boite` de « À traiter »).
+- L'attribut `hidden` masque désormais toujours l'élément, même quand sa classe
+  impose un `display` (barre « Demander ces accès », saisie du bénéficiaire).
+
 ## 0.3.1
 
 - Installateur Windows complet : un assistant (`registris-x.y.z-installateur.exe`)

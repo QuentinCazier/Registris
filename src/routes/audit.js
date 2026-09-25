@@ -7,6 +7,7 @@ import {
   journal, etatChaine, verifierChaine, verifierAncrages, tracer, dernierControle, enregistrerControle,
 } from '../audit.js';
 import { echap, ICONES, page, pageErreur, bandeauErreur, bandeauOk, libelleAction, pluriel } from '../ui.js';
+import { nomsActeurs } from '../administration.js';
 
 export function monter(app) {
   app.get('/export', exigerAuth, exigerDroit('export:audit'), (req, res) => {
@@ -55,8 +56,9 @@ export function monter(app) {
       : ancr.dernier
         ? bandeauOk(`Dernier ancrage le ${echap(ancr.dernier.horodatage.slice(0, 19).replace('T', ' '))} UTC (${pluriel(ancr.ancrages, 'ancrage')}, tous cohérents avec la chaîne).`)
         : `<p class="champ-aide">Aucun ancrage enregistré : lancez <code>registris ancrer</code> régulièrement pour déposer l'empreinte de tête hors de la base.</p>`;
+    const nomDe = nomsActeurs();
     const lignes = journal({ limite: 300, q }).map((j) =>
-      `<tr><td class="mono">${echap(j.horodatage.slice(0, 19).replace('T', ' '))}</td><td>${echap(j.acteur)}</td>
+      `<tr><td class="mono">${echap(j.horodatage.slice(0, 19).replace('T', ' '))}</td><td>${echap(nomDe(j.acteur))}${nomDe(j.acteur) !== j.acteur ? `<span class="sous">${echap(j.acteur)}</span>` : ""}</td>
         <td>${libelleAction(j.action)}<div class="mono" style="font-size:11px;color:var(--encre-3)">${echap(j.action)}</div></td>
         <td class="mono">${j.entite === 'habilitation' && j.entite_id ? `<a href="/habilitations/${j.entite_id}">habilitation n°${j.entite_id}</a>` : echap(`${j.entite ?? ''} ${j.entite_id ?? ''}`)}</td>
         <td style="font-size:12px;color:var(--encre-2)">${echap(j.details ?? '')}</td></tr>`).join('');

@@ -272,6 +272,70 @@ export function listerDemandesDe(login) {
     .all(login);
 }
 
+export const PROFIL_A_PRECISER = 'À préciser par le référent';
+
+// Profils déclarés par l'administrateur, puis ceux déjà accordés sur l'application, les plus courants d'abord.
+export function profilsProposes(applicationId) {
+  const db = ouvrirDb();
+  const a = db.prepare('SELECT profils FROM applications WHERE id = ?').get(Number(applicationId));
+  const declares = String(a?.profils ?? '').split('\n').map((p) => p.trim()).filter(Boolean);
+  const usages = db
+    .prepare(
+      `SELECT role FROM habilitations WHERE application_id = ? AND statut IN ('validee', 'executee') AND role <> ?
+        GROUP BY role ORDER BY COUNT(*) DESC, role LIMIT 20`,
+    )
+    .all(Number(applicationId), PROFIL_A_PRECISER)
+    .map((r) => r.role);
+  const vus = new Set(declares.map((p) => p.toLowerCase()));
+  return [...declares, ...usages.filter((p) => !vus.has(p.toLowerCase()))];
+}
+
+// Motif du refus de chaque demande, tel qu'écrit au journal.
+export function motifsRefus(ids) {
+  const m = new Map();
+  if (!ids.length) return m;
+  const lignes = ouvrirDb()
+    .prepare(
+      `SELECT entite_id, details FROM journal_audit WHERE action = 'habilitation:refuser' AND entite = 'habilitation'
+        AND entite_id IN (${ids.map(() => '?').join(', ')}) ORDER BY id`,
+    )
+    .all(...ids.map(Number));
+  for (const l of lignes) {
+    try {
+      m.set(l.entite_id, JSON.parse(l.details ?? '{}').motif ?? '');
+    } catch {
+      m.set(l.entite_id, '');
+    }
+  }
+  return m;
+}
+
+// UF de la dernière demande de l'agent, proposées d'office à la suivante.
+export function ufsRecentes(matricule) {
+  return ouvrirDb()
+    .prepare(
+      `SELECT hu.uf_id FROM habilitation_ufs hu
+        WHERE hu.habilitation_id = (SELECT h.id FROM habilitations h JOIN agents ag ON ag.id = h.agent_id
+                                     WHERE ag.matricule = ? ORDER BY h.cree_le DESC, h.id DESC LIMIT 1)`,
+    )
+    .all(String(matricule ?? '').trim())
+    .map((r) => r.uf_id);
+}
+
+// Suggestions de saisie : identité seulement, jamais les accès.
+export function suggererAgents(terme, { limite = 8 } = {}) {
+  const t = String(terme ?? '').trim();
+  if (t.length < 2) return [];
+  const q = `%${t}%`;
+  return ouvrirDb()
+    .prepare(
+      `SELECT matricule, nom, prenom FROM agents
+        WHERE actif = 1 AND (matricule LIKE ? OR nom LIKE ? OR prenom LIKE ? OR (nom || ' ' || prenom) LIKE ? OR (prenom || ' ' || nom) LIKE ?)
+        ORDER BY nom, prenom LIMIT ?`,
+    )
+    .all(q, q, q, q, q, limite);
+}
+
 // --- Création et cycle de vie ---------------------------------------------------
 
 // `donnees` : agent { matricule, nom, prenom, email }, applicationId, role,
@@ -418,6 +482,9 @@ export function changerStatut(acteur, id, action, { motif = '' } = {}) {
   }
   const m = String(motif ?? '').trim();
   if (t.motifRequis && !m) throw new Error('Un refus doit être motivé : le demandeur doit pouvoir le lire.');
+  if (['valider', 'executer'].includes(action) && h.role === PROFIL_A_PRECISER) {
+    throw new Error("Précisez d'abord le profil : l'agent ne le connaissait pas.");
+  }
 
   const marqueurs = t.de.map(() => '?').join(', ');
   const r = db
@@ -443,6 +510,20 @@ export function changerStatut(acteur, id, action, { motif = '' } = {}) {
     entiteId: Number(id),
     details: { de: h.statut, vers: t.vers, ...(m ? { motif: m } : {}), ...suiteDe },
   });
+  return habilitationParId(id);
+}
+
+// Le référent fixe le profil tant que l'accès n'est pas ouvert, notamment quand l'agent ne le connaissait pas.
+export function modifierProfil(acteur, id, role) {
+  const r = String(role ?? '').trim().slice(0, 200);
+  if (!r) throw new Error('Le profil est requis.');
+  const db = ouvrirDb();
+  const h = db.prepare('SELECT * FROM habilitations WHERE id = ?').get(Number(id));
+  if (!h) throw new Error('Habilitation introuvable.');
+  if (!['demandee', 'validee'].includes(h.statut)) throw new Error("Le profil ne se modifie plus une fois l'accès ouvert ou la demande close.");
+  if (h.role === r) return habilitationParId(id);
+  db.prepare("UPDATE habilitations SET role = ?, maj_le = datetime('now') WHERE id = ?").run(r, Number(id));
+  tracer(acteur, 'habilitation:profil', { entite: 'habilitation', entiteId: Number(id), details: { de: h.role, vers: r } });
   return habilitationParId(id);
 }
 

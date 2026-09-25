@@ -2,13 +2,26 @@
 
 import { config } from '../config.js';
 import { exigerAuth, peut, referentGereApplication } from '../roles.js';
-import { listerApplications, statistiques, listerHabilitations } from '../habilitations.js';
-import { perimetresReferents } from '../administration.js';
+import { listerApplications, statistiques, listerHabilitations, listerDemandesDe } from '../habilitations.js';
+import { perimetresReferents, nomsActeurs, etatMiseEnRoute } from '../administration.js';
 import { journal, etatChaine } from '../audit.js';
 import { enCours } from '../revues.js';
 import { demandesEnRetard } from '../relances.js';
-import { echap, ICONES, page, tag, bandeauErreur, barres, libelleAction, pluriel } from '../ui.js';
+import { echap, ICONES, page, tag, bandeauErreur, barres, libelleAction, pluriel, dateFr } from '../ui.js';
 import { perimetreRevue } from './outils.js';
+import { tableauDemandes } from './demandes.js';
+
+// Liste des étapes de mise en service, tant qu'il en reste une.
+export function blocMiseEnRoute() {
+  const m = etatMiseEnRoute();
+  if (m.faites === m.total) return '';
+  return `<div class="bloc">
+    <div class="bloc-tete"><h2>Mise en route</h2><span class="c">${m.faites} sur ${m.total} faites</span></div>
+    <ol class="etapes">${m.etapes.map((e, i) => `<li class="${e.fait ? 'fait' : ''}">
+      <span class="num" aria-hidden="true">${e.fait ? '✓' : i + 1}</span>
+      <div><div class="t">${echap(e.titre)}${e.fait ? '<span class="sr"> (fait)</span>' : ''}</div><div class="d">${echap(e.detail)}</div></div>
+      ${e.fait ? '' : `<a class="btn btn-petit" href="${e.lien}">Y aller<span class="sr"> : ${echap(e.titre)}</span></a>`}</li>`).join('')}</ol></div>`;
+}
 
 export function monter(app) {
   app.get('/', exigerAuth, (req, res) => {
@@ -17,14 +30,20 @@ export function monter(app) {
       const rac = (href, icone, titre, desc) =>
         `<a class="rac" href="${href}"><span class="ic">${ICONES[icone]}</span>
           <span><span class="t">${titre}</span><span class="d">${desc}</span></span></a>`;
+      const miennes = listerDemandesDe(u.login);
       return res.send(
         page(req, 'Accueil',
           `<div class="raccourcis">
-            ${rac('/habilitations/nouvelle', 'plus', 'Demander un accès', 'Pour vous ou pour un collègue')}
-            ${rac('/mes-demandes', 'liste', 'Mes demandes', 'Suivre mes demandes en cours')}
+            ${peut(u.role, 'habilitation:creer') ? rac('/habilitations/nouvelle', 'plus', 'Demander un accès', 'Pour vous ou pour un collègue') : ''}
+            ${rac('/mes-demandes', 'liste', 'Mes demandes', 'Voir où en sont vos demandes')}
+            ${peut(u.role, 'habilitation:creer') ? rac('/depart', 'sortie', 'Signaler un départ', "Faire fermer les accès d'un collègue qui part") : ''}
           </div>
-          <p class="aide">Chaque demande est tracée et conservée avec ses pièces justificatives (mail de la
-          demande, capture, PDF). C'est ce registre qui est présenté aux auditeurs.</p>`),
+          <section><h2>Mes dernières demandes</h2>
+            ${miennes.length
+              ? `${tableauDemandes(miennes.slice(0, 5), { legende: 'Vos dernières demandes' })}
+                 ${miennes.length > 5 ? `<p><a href="/mes-demandes">Voir les ${miennes.length} demandes</a></p>` : ''}`
+              : "<div class=\"vide\">Aucune demande pour l'instant. Commencez par « Demander un accès ».</div>"}
+          </section>`),
       );
     }
     const s = statistiques();
@@ -38,15 +57,18 @@ export function monter(app) {
         peut(u.role, droit) && referentGereApplication(u, h.application_id)
           ? `<form method="post" action="/habilitations/${h.id}/${action}"><input type="hidden" name="retour" value="/">
                <button class="btn btn-petit">${label}</button></form> ` : '';
-      const actions = h.statut === 'demandee'
-        ? agir('valider', 'Valider', 'habilitation:valider') + agir('executer', 'Exécuter', 'habilitation:executer')
-        : agir('executer', 'Exécuter', 'habilitation:executer');
+      const fermeture = Boolean(h.retrait_demande_le);
+      const actions = fermeture
+        ? agir('revoquer', "Fermer l'accès", 'habilitation:revoquer')
+        : h.statut === 'demandee'
+          ? agir('valider', 'Valider', 'habilitation:valider') + agir('executer', 'Marquer ouvert', 'habilitation:executer')
+          : agir('executer', 'Marquer ouvert', 'habilitation:executer');
       return `<tr>
         <td class="num"><a href="/habilitations/${h.id}">${h.id}</a></td>
         <td><span class="nom">${echap(benef)}</span><span class="mat">${echap(h.matricule)}</span></td>
         <td>${echap(h.app_libelle)}<span class="sous">${echap(h.role)}</span></td>
-        <td class="num">${echap(h.date_demande ?? '')}</td>
-        <td>${tag(h.statut)}${h.nb_preuves === 0 && h.statut === 'validee' ? ' <span class="puce p-attente">sans pièce</span>' : ''}</td>
+        <td class="num">${echap(dateFr(fermeture ? h.retrait_demande_le : h.date_demande))}</td>
+        <td>${fermeture ? '<span class="puce p-fermeture">fermeture demandée</span>' : tag(h.statut)}${h.nb_preuves === 0 && h.statut === 'validee' ? ' <span class="puce p-attente">sans pièce</span>' : ''}</td>
         <td class="acts">${actions || `<a class="btn btn-petit" href="/habilitations/${h.id}">Ouvrir</a>`}</td>
       </tr>`;
     };
@@ -59,7 +81,7 @@ export function monter(app) {
     const points = [
       {
         n: s.sansPreuve,
-        texte: (n) => `${pluriel(n, 'habilitation')} ${n >= 2 ? 'accordées' : 'accordée'} sans aucune pièce au coffre.`,
+        texte: (n) => `${pluriel(n, 'accès', '')} ${n >= 2 ? 'accordés' : 'accordé'} sans pièce justificative.`,
         lien: '/suivi?sans_preuve=1',
         libelle: 'Les voir et joindre les preuves',
       },
@@ -79,7 +101,7 @@ export function monter(app) {
       ...(campagne
         ? [{
             n: req.compteurs?.revue ?? 0,
-            texte: (n) => `${pluriel(n, 'accès', '')} ${n >= 2 ? 'restent' : 'reste'} à revoir dans la campagne « ${echap(campagne.libelle)} »${campagne.echeance ? `, échéance du ${echap(campagne.echeance)}` : ''}.`,
+            texte: (n) => `${pluriel(n, 'accès', '')} ${n >= 2 ? 'restent' : 'reste'} à revoir dans la campagne « ${echap(campagne.libelle)} »${campagne.echeance ? `, à finir avant le ${echap(dateFr(campagne.echeance))}` : ''}.`,
             lien: `/revues/${campagne.id}`,
             libelle: 'Traiter ma part de la revue',
           }]
@@ -92,16 +114,20 @@ export function monter(app) {
       }</div></li>`)
       .join('');
 
-    const sous = `Registre ${config.etablissement ? `du ${echap(config.etablissement)} : ` : ': '}<b>${pluriel(s.habilitations, 'habilitation')}</b> dont <b>${pluriel(s.parStatut.executee ?? 0, 'active')}</b>, ` +
-      `<b>${pluriel(s.agents, 'agent')}</b>, <b>${pluriel(s.preuves, 'pièce')}</b> au coffre, <b>${pluriel(chaine.entrees, 'écriture')} ${chaine.entrees >= 2 ? 'scellées' : 'scellée'}</b>.`;
+    const ouverts = s.parStatut.executee ?? 0;
+    const sous = `Registre ${config.etablissement ? `du ${echap(config.etablissement)} : ` : ': '}<b>${pluriel(s.habilitations, 'demande')}</b> ${s.habilitations >= 2 ? 'enregistrées' : 'enregistrée'}, dont <b>${pluriel(ouverts, 'accès', '')} ${ouverts >= 2 ? 'ouverts' : 'ouvert'}</b>, `
+      + `pour <b>${pluriel(s.agents, 'agent')}</b>, avec <b>${pluriel(s.preuves, 'pièce')}</b> ${s.preuves >= 2 ? 'justificatives' : 'justificative'}.`;
+    const nomDe = nomsActeurs();
+    const voitAudit = peut(u.role, 'audit:lire');
 
     res.send(
       page(req, 'Tableau de bord',
-        `${chaine.valide
-          ? `<div class="bandeau b-ok">${ICONES.bouclier}<div><div class="t">Chaîne d'audit intègre</div>
-               <div class="d">${pluriel(chaine.entrees, 'écriture')} ${chaine.entrees >= 2 ? 'scellées' : 'scellée'}, aucune rupture.</div></div>
-               <a class="r" href="/coffre">Vérifier le coffre</a></div>`
-          : bandeauErreur(`Rupture de la chaîne d'audit détectée (entrée n° ${chaine.rupture}). Consultez le journal.`)}
+        `${peut(u.role, 'admin:gerer') ? blocMiseEnRoute() : ''}
+        ${!voitAudit ? '' : chaine.valide
+          ? `<div class="bandeau b-ok">${ICONES.bouclier}<div><div class="t">Journal d'audit vérifié</div>
+               <div class="d">Aucune modification après coup sur les ${pluriel(chaine.entrees, 'opération')} ${chaine.entrees >= 2 ? 'enregistrées' : 'enregistrée'}.</div></div>
+               <a class="r" href="/coffre">Vérifier les pièces</a></div>`
+          : bandeauErreur(`Le journal d'audit a été modifié après coup (entrée n° ${chaine.rupture}). Consultez le journal.`)}
 
         <div class="colonnes">
           <div>
@@ -132,11 +158,11 @@ export function monter(app) {
             </div>
 
             <div class="bloc">
-              <div class="bloc-tete"><h2>Dernières écritures</h2><span class="c">${chaine.entrees} au total</span></div>
+              <div class="bloc-tete"><h2>Activité récente</h2></div>
               <ul class="ecritures">${journal({ limite: 6 }).map((j) =>
-                `<li><span class="h">${echap(j.horodatage.slice(0, 16).replace('T', ' '))}</span>
-                   <span class="a"><b>${echap(j.acteur)}</b> ${libelleAction(j.action)}</span></li>`).join('')}</ul>
-              <div class="bloc-pied"><a href="/audit">Tout le journal d'audit</a></div>
+                `<li><span class="h">${echap(dateFr(j.horodatage))} ${echap(j.horodatage.slice(11, 16))}</span>
+                   <span class="a"><b>${echap(nomDe(j.acteur))}</b> ${libelleAction(j.action)}</span></li>`).join('')}</ul>
+              ${voitAudit ? "<div class=\"bloc-pied\"><a href=\"/audit\">Tout le journal d'audit</a></div>" : ''}
             </div>
           </div>
         </div>`,

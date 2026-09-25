@@ -385,5 +385,6 @@ export function initialiserSchema() {
   `);
   ajouterColonneSiAbsente('habilitations', 'relance_le', 'TEXT');
   ajouterColonneSiAbsente('habilitations', 'relances', 'INTEGER NOT NULL DEFAULT 0');
+  ajouterColonneSiAbsente('applications', 'profils', 'TEXT');
   return base;
 }

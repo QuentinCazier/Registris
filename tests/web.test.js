@@ -65,6 +65,14 @@ test('santé publique, pages protégées redirigées vers la connexion', async (
   }
 });
 
+test('page de connexion : son cadre n\'hérite pas de la grille à deux colonnes de « À traiter »', async () => {
+  // La classe globale .boite dispose la file de traitement en deux colonnes : la réutiliser ici
+  // écrasait le formulaire dans une colonne de quelques pixels sur les écrans larges.
+  const html = await (await client().go('/connexion')).text();
+  assert.match(html, /<div class="boite-connexion">/);
+  assert.doesNotMatch(html, /<div class="boite">/);
+});
+
 test('en-têtes de sécurité présents', async () => {
   const r = await client().go('/connexion');
   assert.equal(r.headers.get('x-frame-options'), 'DENY');
@@ -175,7 +183,7 @@ test('preuve : téléversement multipart accepté (PNG), refusé (exécutable d�
   assert.match(await refus.text(), /ne correspond pas/);
   const fiche = await (await agent.go(`/habilitations/${habId}`)).text();
   assert.match(fiche, /capture\.png/);
-  assert.match(fiche, /intègre/);
+  assert.match(fiche, /vérifiée/);
   const lien = fiche.match(/href="\/preuves\/(\d+)"/)[1];
   const dl = await agent.go(`/preuves/${lien}`);
   assert.equal(dl.status, 200);
@@ -250,7 +258,7 @@ test('tableau de bord : une file de travail et l’état de la chaîne, pas des 
   await c.connecter('admin');
   const html = await (await c.go('/')).text();
   assert.match(html, /À traiter/);
-  assert.match(html, /Chaîne d'audit intègre/);
+  assert.match(html, /Journal d'audit vérifié/);
   assert.match(html, /Points de vigilance/);
   assert.match(html, /class="bandeau b-ok"/);
   assert.equal(html.includes('<a class="tuile'), false, 'les tuiles de chiffres ont disparu');
@@ -533,7 +541,7 @@ test('impression : la fiche porte son en-tête et l’empreinte complète', asyn
   const fiche = await (await c.go(`/habilitations/${habId}`)).text();
   assert.match(fiche, /class="impr"/, 'en-tête réservé à l’impression');
   assert.match(fiche, /Dossier de preuve imprimé le \d{4}-\d{2}-\d{2}/);
-  assert.match(fiche, /class="empreinte-complete">SHA-256 [0-9a-f]{64}/, 'empreinte entière sur le papier');
+  assert.match(fiche, /class="empreinte-complete"> · SHA-256 [0-9a-f]{64}/, 'empreinte entière sur le papier');
 });
 
 // --- Boîte d'entrée : la demande arrive par mail, la fermeture est demandée -----------------
@@ -549,7 +557,7 @@ test('le mail de demande est déposé avec la demande, en une seule étape', asy
   await agent.connecter('agent');
   const form = await (await agent.go(`/habilitations/nouvelle/${gam}`)).text();
   assert.match(form, /enctype="multipart\/form-data"/, 'le formulaire accepte un fichier');
-  assert.match(form, /le mail de demande, ou une capture/);
+  assert.match(form, /Le mail de demande ou une capture/);
 
   const fd = new FormData();
   fd.set('_csrf', agent.csrf(form));
@@ -564,7 +572,7 @@ test('le mail de demande est déposé avec la demande, en une seule étape', asy
 
   const fiche = await (await agent.go(`/habilitations/${id}`)).text();
   assert.match(fiche, /demande-du-cadre\.eml/, 'le mail est au coffre des le depot');
-  assert.match(fiche, /intègre/);
+  assert.match(fiche, /vérifiée/);
 
   // Une pièce refusée n'enregistre pas la demande à moitié.
   const piege = new FormData();
@@ -761,7 +769,7 @@ test('demande multiple : une seule saisie, autant de demandes que d applications
 
   const form = await (await agent.go(`/habilitations/nouvelle/multiple?apps=${gam}&apps=2`)).text();
   assert.match(form, /2 applications sélectionnées/);
-  assert.match(form, /name="role_2"/);
+  assert.match(form, /name="role_choix_2"/);
 
   const fd = new FormData();
   fd.set('_csrf', agent.csrf(form));
@@ -969,4 +977,27 @@ test('sessions : la santé ne pose pas de cookie, la session de connexion est en
   const n = ouvrirDb().prepare("SELECT COUNT(*) n FROM sessions WHERE donnees LIKE '%\"login\":\"admin\"%'").get().n;
   assert.ok(n >= 1, 'la session connectée est écrite en base');
   await c.go('/deconnexion');
+});
+
+test('nouvelle demande : les catégories sont des panneaux du même formulaire, la sélection survit au changement d\'onglet', async () => {
+  // Deuxième catégorie : GAM (Gestion) et une application « Soins » doivent pouvoir être cochées ensemble.
+  const soins = A.creerCategorie('test', { libelle: 'Soins (test des onglets)' });
+  const dpiSoins = A.creerApplication('test', { code: 'DPI-SOINS', libelle: 'DPI soins', categorieId: soins });
+  const agent = client();
+  await agent.connecter('agent');
+  const html = await (await agent.go('/habilitations/nouvelle')).text();
+  // Un seul formulaire contient les cases des deux catégories ; seul l'onglet courant est affiché.
+  const form = html.slice(html.indexOf('id="choix-apps"'), html.indexOf('</form>'));
+  assert.match(form, new RegExp(`name="apps" value="${gam}"`));
+  assert.match(form, new RegExp(`name="apps" value="${dpiSoins}"`));
+  const panneaux = (form.match(/data-panneau="/g) ?? []).length;
+  assert.ok(panneaux >= 2, 'un panneau par catégorie');
+  assert.equal((form.match(/data-panneau="\d+" hidden/g) ?? []).length, panneaux - 1, 'seul l\'onglet courant est affiché');
+  // L'attribut hidden l'emporte sur les display:grid / flex de la feuille de style.
+  assert.match(html, /\[hidden\]\{display:none!important\}/);
+  // Les deux sélections aboutissent à une seule demande groupée.
+  const multiple = await agent.go(`/habilitations/nouvelle/multiple?apps=${gam}&apps=${dpiSoins}`);
+  assert.equal(multiple.status, 200);
+  const page = await multiple.text();
+  assert.match(page, /2 applications sélectionnées/);
 });
