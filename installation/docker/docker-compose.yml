@@ -4,7 +4,7 @@
 # La base, les pièces et le secret de session vivent dans le volume registris-donnees.
 services:
   registris:
-    image: ghcr.io/quentincazier/registris:0.3.0
+    image: ghcr.io/quentincazier/registris:0.4.0
     container_name: registris
     restart: unless-stopped
     # Derrière un reverse-proxy HTTPS de l'hôte : ne publier que sur l'adresse locale. Au démarrage,

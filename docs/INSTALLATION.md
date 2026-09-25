@@ -22,7 +22,7 @@ Les fichiers `SHA256SUMS` (archive Linux, nomenclature) et
 l'empreinte de chaque fichier.
 
 ```powershell
-certutil -hashfile registris-0.3.1-installateur.exe SHA256        # Windows
+certutil -hashfile registris-0.4.0-installateur.exe SHA256        # Windows
 ```
 
 ```bash
@@ -55,7 +55,7 @@ survit pas à une élévation UAC) :
 
 ```powershell
 $env:REGISTRIS_MOT_DE_PASSE = '...'
-.\registris-0.3.1-installateur.exe /VERYSILENT /Etablissement="CH de Ville" /Port=443 /Admin=admin /Tls=auto
+.\registris-0.4.0-installateur.exe /VERYSILENT /Etablissement="CH de Ville" /Port=443 /Admin=admin /Tls=auto
 ```
 
 Options : `/Tls=pfx /Pfx=C:\pki\registris.pfx /PfxMotDePasse=...`, ou `/Tls=aucun`.
@@ -117,8 +117,8 @@ jour ouvré. Voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 ## Linux avec systemd
 
 ```bash
-tar -xzf registris-0.3.1.tar.gz
-cd registris-0.3.1
+tar -xzf registris-0.4.0.tar.gz
+cd registris-0.4.0
 sudo installation/linux/installer.sh --etablissement "CH de Ville" --port 443
 ```
 

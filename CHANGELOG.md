@@ -1,6 +1,6 @@
 # Journal des versions
 
-## Non publié
+## 0.4.0
 
 - Accès temporaires : une date de fin sur la demande ; à l'échéance, la
   fermeture est demandée d'elle-même au référent. Onglet « Temporaires » au
