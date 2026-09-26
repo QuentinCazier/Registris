@@ -10,8 +10,8 @@
     installation\windows\installer.cmd                       (clic droit, puis répondre aux questions)
     .\installer.ps1 -Etablissement "CH de Ville" -Port 443    (en PowerShell, administrateur)
 
-  Options : -Dossier, -Donnees, -Port, -Etablissement, -Admin,
-            -Tls auto|pfx|pem|aucun, -Certificat, -Cle, -MotDePassePfx,
+  Options : -Dossier, -Donnees, -Port, -Etablissement, -Admin, -Config registris.env (configuration complète à reprendre),
+            -Tls auto|pfx|pem|aucun|conserver, -Certificat, -Cle, -MotDePassePfx,
             -SansService (copie et configuration seulement), -SansParefeu, -Silencieux
 #>
 [CmdletBinding()]
@@ -21,7 +21,8 @@ param(
   [int]$Port = 3000,
   [string]$Etablissement = '',
   [string]$Admin = 'admin',
-  [ValidateSet('auto', 'pfx', 'pem', 'aucun')][string]$Tls = 'auto',
+  [ValidateSet('auto', 'pfx', 'pem', 'aucun', 'conserver', '')][string]$Tls = '',
+  [string]$Config = '',
   [string]$Certificat = '',
   [string]$Cle = '',
   [string]$MotDePassePfx = '',
@@ -76,12 +77,12 @@ if (-not $SansService -and -not (Test-Path $exeService)) {
   Echec "registris-service.exe absent de $PSScriptRoot : il est fourni dans l'archive Windows de la release (WinSW 2.12.0)."
 }
 $service = Get-Service -Name Registris -ErrorAction SilentlyContinue
-$config = Join-Path $Donnees 'registris.env'
-$miseAJour = ($null -ne $service) -or (Test-Path $config)
+$fichierConfig = Join-Path $Donnees 'registris.env'
+$miseAJour = ($null -ne $service) -or (Test-Path $fichierConfig)
 if ($miseAJour) { Write-Host "Registris $Version : mise à jour d'une installation existante" } else { Write-Host "Registris $Version : nouvelle installation" }
 
 $motDePasse = $null
-if (-not $miseAJour -and -not $Silencieux) {
+if (-not $miseAJour -and -not $Silencieux -and -not $Config) {
   Etape 'Paramètres'
   if (-not $Etablissement) { $Etablissement = Read-Host "Nom de l'établissement (affiché dans la barre haute)" }
   $saisiePort = Read-Host "Port d'écoute [$Port]"
@@ -103,8 +104,10 @@ Write-Host "Copié : $Dossier"
 
 Etape 'Configuration'
 $appel = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $Dossier 'installation\windows\configurer.ps1'),
-  '-Dossier', $Dossier, '-Donnees', $Donnees, '-Node', $nodeExe, '-Port', $Port, '-Admin', $Admin, '-Tls', $Tls)
-foreach ($p in @{ Etablissement = $Etablissement; Certificat = $Certificat; Cle = $Cle; MotDePassePfx = $MotDePassePfx }.GetEnumerator()) {
+  '-Dossier', $Dossier, '-Donnees', $Donnees, '-Node', $nodeExe, '-Admin', $Admin)
+if ($PSBoundParameters.ContainsKey('Port') -or (-not $miseAJour -and -not $Config)) { $appel += '-Port', $Port }
+if ($Config) { $appel += '-Importer', ([IO.Path]::GetFullPath($Config)) }
+foreach ($p in @{ Tls = $Tls; Etablissement = $Etablissement; Certificat = $Certificat; Cle = $Cle; MotDePassePfx = $MotDePassePfx }.GetEnumerator()) {
   if ($p.Value) { $appel += "-$($p.Key)", $p.Value }
 }
 $env:REGISTRIS_MOT_DE_PASSE = $motDePasse
@@ -114,7 +117,7 @@ try {
 } finally {
   Remove-Item Env:REGISTRIS_MOT_DE_PASSE -ErrorAction SilentlyContinue
 }
-$lignesConfig = Get-Content $config
+$lignesConfig = Get-Content $fichierConfig
 $hote = (($lignesConfig | Where-Object { $_ -like 'HOTE=*' } | Select-Object -First 1) -replace '^HOTE=', '')
 $portConfig = (($lignesConfig | Where-Object { $_ -like 'PORT=*' } | Select-Object -First 1) -replace '^PORT=', '')
 if ($portConfig) { $Port = [int]$portConfig }
@@ -157,8 +160,8 @@ $adresse = "${schema}://$([Net.Dns]::GetHostName()):$Port/"
 if ($hote -eq '127.0.0.1') { $adresse = "${schema}://127.0.0.1:$Port/" }
 Write-Host "Registris $Version : $adresse"
 if (-not $miseAJour) { Write-Host "Compte administrateur : $Admin" }
-Write-Host "Configuration : $config"
+Write-Host "Configuration : $fichierConfig"
 Write-Host "Données et sauvegardes : $Donnees"
-if ($SansService) { Write-Host "Démarrage manuel : `$env:REGISTRIS_CONFIG='$config'; & `"$nodeExe`" `"$Dossier\src\cli.js`" servir" }
+if ($SansService) { Write-Host "Démarrage manuel : `$env:REGISTRIS_CONFIG='$fichierConfig'; & `"$nodeExe`" `"$Dossier\src\cli.js`" servir" }
 Write-Host 'Étapes suivantes : Active Directory et courriels dans la configuration, puis les tâches planifiées'
 Write-Host "(sauvegarder, ancrer, verifier, relancer) décrites dans $Dossier\docs\DEPLOIEMENT.md."

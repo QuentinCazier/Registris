@@ -14,6 +14,13 @@ async function obtenirTransport() {
   return transport;
 }
 
+// Connexion au relais sans rien envoyer ; lève en cas d'échec.
+export async function verifierSmtp() {
+  const t = await obtenirTransport();
+  if (!t) throw new Error('SMTP_HOST non renseigné');
+  await t.verify();
+}
+
 // true si le relais a accepté le message.
 export async function notifier({ to, sujet, texte }) {
   const destinataires = (Array.isArray(to) ? to : [to]).filter(Boolean);

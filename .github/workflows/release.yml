@@ -30,7 +30,7 @@ jobs:
           npm ci --omit=dev --no-audit --no-fund
           cp -r node_modules "$D/node_modules"
           rm -rf "$D/installation/windows"
-          npm sbom --sbom-format cyclonedx --omit dev > "dist/registris-$VERSION.cdx.json"
+          npm sbom --sbom-format cyclonedx --omit dev --package-lock-only > "dist/registris-$VERSION.cdx.json"
           (cd dist && tar -czf "registris-$VERSION.tar.gz" "registris-$VERSION")
           (cd dist && sha256sum "registris-$VERSION.tar.gz" "registris-$VERSION.cdx.json" > SHA256SUMS)
           node -e '

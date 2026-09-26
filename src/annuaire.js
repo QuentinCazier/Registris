@@ -118,5 +118,35 @@ async function etatComptesLdap(matricules) {
   });
 }
 
+// Le compte de service se connecte, la base de recherche existe, chaque groupe de rôle se trouve.
+async function verifierCompteServiceLdap() {
+  const { AndFilter, OrFilter, EqualityFilter } = await import('ldapts');
+  return avecCompteDeService(async (client) => {
+    const base = await client.search(config.ldap.searchBase, { scope: 'base', attributes: ['distinguishedName'] })
+      .then(({ searchEntries }) => searchEntries.length > 0, () => false);
+    const groupes = {};
+    for (const [role, nom] of Object.entries(config.ldap.groupes)) {
+      if (!nom) continue;
+      const cn = /^cn=([^,]+)/i.exec(nom)?.[1] ?? nom;
+      const { searchEntries } = await client.search(config.ldap.searchBase, {
+        scope: 'sub',
+        filter: new AndFilter({
+          filters: [
+            new EqualityFilter({ attribute: 'objectClass', value: 'group' }),
+            new OrFilter({ filters: [new EqualityFilter({ attribute: 'cn', value: cn }), new EqualityFilter({ attribute: 'distinguishedName', value: nom })] }),
+          ],
+        }),
+        attributes: ['cn'],
+        sizeLimit: 2,
+      });
+      groupes[role] = searchEntries.length > 0;
+    }
+    return { base, groupes };
+  });
+}
+
 // Remplaçable par les tests, qui n'ont pas d'annuaire.
-export const annuaire = { groupesImbriques: groupesImbriquesLdap, chercherAgent: chercherAgentLdap, etatComptes: etatComptesLdap };
+export const annuaire = {
+  groupesImbriques: groupesImbriquesLdap, chercherAgent: chercherAgentLdap, etatComptes: etatComptesLdap,
+  verifierCompteService: verifierCompteServiceLdap,
+};
