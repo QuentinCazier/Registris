@@ -354,3 +354,59 @@ test('import : colonne « Accord du cadre » des applications, colonne « Cadres
   const uf = H.listerUfs().find((u) => u.code === '4001').id;
   assert.deepEqual(ACC.responsablesUf(uf), ['adjoint', 'cadre.pharma']);
 });
+
+// --- Contrôle de la configuration ----------------------------------------------------------------
+
+test('contrôle de la configuration : annuaire, groupe manquant, messagerie désactivée', async () => {
+  const { config } = await import('../src/config.js');
+  const { verifierConfiguration } = await import('../src/verification.js');
+  const sauvegarde = { authMode: config.authMode, bindDN: config.ldap.bindDN, url: config.ldap.url, groupes: { ...config.ldap.groupes } };
+  const original = annuaire.verifierCompteService;
+  try {
+    let r = await verifierConfiguration();
+    assert.ok(r.some((x) => x.domaine === 'Données' && x.statut === 'ok'));
+    assert.ok(r.some((x) => x.domaine === 'Courriels' && x.statut === 'attention'), 'relais non configuré : à regarder');
+
+    config.authMode = 'ldap';
+    config.ldap.bindDN = 'CN=svc,DC=essai';
+    config.ldap.url = 'ldaps://dc.essai:636';
+    config.ldap.groupes = { admin: 'GG_Admin', referent: 'GG_Ref', controleur: '', utilisateur: '' };
+    annuaire.verifierCompteService = async () => ({ base: true, groupes: { admin: true, referent: false } });
+    r = await verifierConfiguration();
+    assert.ok(r.some((x) => x.etape === 'Connexion du compte de service' && x.statut === 'ok'));
+    const ref = r.find((x) => x.etape === 'Groupe des référents');
+    assert.equal(ref.statut, 'echec');
+    assert.match(ref.detail, /GG_Ref/);
+
+    annuaire.verifierCompteService = async () => { throw new Error('80090308: LdapErr: AcceptSecurityContext error, data 52e, v1db1'); };
+    r = await verifierConfiguration();
+    assert.match(r.find((x) => x.etape === 'Connexion du compte de service').detail, /mot de passe incorrect/);
+  } finally {
+    annuaire.verifierCompteService = original;
+    config.authMode = sauvegarde.authMode;
+    config.ldap.bindDN = sauvegarde.bindDN;
+    config.ldap.groupes = sauvegarde.groupes;
+    config.ldap.url = sauvegarde.url;
+  }
+});
+
+test('page Configuration : réglages en vigueur, secrets masqués, tests à la demande', async () => {
+  const { config } = await import('../src/config.js');
+  const ancien = config.smtp.password;
+  config.smtp.password = 'Secret-Qui-Ne-Doit-Pas-Sortir';
+  try {
+    const admin = client();
+    await admin.connecter('admin');
+    const page = sansStyle(await (await admin.go('/admin/configuration')).text());
+    assert.match(page, /SMTP_HOST, SMTP_PORT/);
+    assert.match(page, /CONSERVATION_ANNEES/);
+    assert.doesNotMatch(page, /Secret-Qui-Ne-Doit-Pas-Sortir/);
+    const tests = sansStyle(await (await admin.go('/admin/configuration?tester=1')).text());
+    assert.match(tests, /Résultat des tests/);
+    const ref = client();
+    await ref.connecter('ref');
+    assert.equal((await ref.go('/admin/configuration')).status, 403);
+  } finally {
+    config.smtp.password = ancien;
+  }
+});

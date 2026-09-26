@@ -629,6 +629,7 @@ const SOUS_SECTIONS = {
     { href: '/admin/utilisateurs', libelle: 'Comptes et référents' },
     { href: '/admin/routage', libelle: 'Notifications' },
     { href: '/admin/api', libelle: 'API' },
+    { href: '/admin/configuration', libelle: 'Configuration' },
   ],
 };
 

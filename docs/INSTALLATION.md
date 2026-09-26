@@ -34,15 +34,32 @@ sha256sum -c SHA256SUMS                               # Linux
 ### L'assistant d'installation
 
 Téléchargez `registris-x.y.z-installateur.exe`, vérifiez sa somme SHA-256, puis
-lancez-le en administrateur. Il demande le dossier, le nom de l'établissement,
-le port, l'identifiant et le mot de passe de l'administrateur, et le mode HTTPS
-(certificat auto-signé généré sur place, fichier PFX de votre PKI, ou pas de
-HTTPS derrière un reverse-proxy). Il installe ensuite l'application, Node.js,
-le service Windows et ouvre le port, puis propose d'ouvrir Registris dans le
-navigateur.
+lancez-le en administrateur. L'assistant règle tout ce dont le service a besoin,
+sans fichier à modifier ensuite :
 
-Tant que l'installateur n'est pas signé par un certificat d'éditeur (voir
-[SIGNATURE.md](SIGNATURE.md)), Windows SmartScreen
+| Page | Ce qui se règle |
+|---|---|
+| Point de départ | configurer pas à pas, ou reprendre un fichier `registris.env` ou `.env` existant, relu ensuite page par page |
+| Établissement | nom affiché, port d'écoute |
+| Compte administrateur | premier compte, qui reste utilisable si l'annuaire est injoignable |
+| Chiffrement HTTPS | certificat auto-signé généré sur place, fichier PFX de votre PKI, ou pas de HTTPS derrière un reverse-proxy (cookie sécurisé et confiance dans le proxy réglés d'office) |
+| Connexion des agents | Active Directory ou comptes propres à Registris |
+| Active Directory | serveur LDAPS, base de recherche, compte de service, groupes des quatre rôles, groupes imbriqués, certificat de l'autorité |
+| Courriels | relais SMTP, adresse d'expédition, compte et chiffrement facultatifs |
+| Fonctionnement | délai de relance, durée de conservation, adresse des liens envoyés par courriel |
+
+Il installe ensuite l'application, Node.js et le service Windows, ouvre le port,
+puis **contrôle la configuration** : connexion du compte de service à l'annuaire,
+présence de chaque groupe, relais de messagerie, certificat. La dernière page
+dit ce qui répond et ce qui est à corriger ; le détail reste dans
+« Administration, Configuration », qui relance les mêmes tests à la demande.
+
+Pour changer un réglage plus tard, relancez l'installateur et choisissez
+« Mettre à jour et modifier la configuration » : les pages reviennent
+préremplies, un mot de passe laissé vide garde celui déjà enregistré, et le
+service redémarre avec la nouvelle configuration.
+
+Tant que l'installateur n'est pas signé par un certificat d'éditeur, Windows SmartScreen
 affiche « Windows a protégé votre ordinateur » au premier lancement. Cliquez sur
 « Informations complémentaires » puis « Exécuter quand même », après avoir
 comparé la somme SHA-256 à celle publiée avec la release. Le programme figure
@@ -55,10 +72,15 @@ survit pas à une élévation UAC) :
 
 ```powershell
 $env:REGISTRIS_MOT_DE_PASSE = '...'
-.\registris-0.4.0-installateur.exe /VERYSILENT /Etablissement="CH de Ville" /Port=443 /Admin=admin /Tls=auto
+.\registris-0.4.0-installateur.exe /VERYSILENT /Config=C:\deploiement\registris.env /Tls=auto
 ```
 
-Options : `/Tls=pfx /Pfx=C:\pki\registris.pfx /PfxMotDePasse=...`, ou `/Tls=aucun`.
+`/Config=` reprend un fichier de configuration complet, préparé une fois pour
+tous les serveurs : annuaire, courriels, conservation. Les chemins des données
+restent ceux du serveur. Sans fichier : `/Etablissement="CH de Ville" /Port=443`.
+Autres options : `/Admin=admin`, `/Tls=pfx /Pfx=C:\pki\registris.pfx /PfxMotDePasse=...`,
+`/Tls=aucun`, `/Tls=conserver` (certificat déjà décrit dans le fichier). Sur une
+installation existante, `/Config=` modifie la configuration au lieu de la garder.
 Mise à jour : relancer l'installateur de la nouvelle version, la configuration
 et les données sont conservées. Chaque installateur publié a été installé,
 vérifié, mis à jour et désinstallé sur un serveur Windows par l'intégration

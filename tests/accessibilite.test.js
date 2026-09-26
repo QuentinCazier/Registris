@@ -66,7 +66,7 @@ const PAGES = [
   `/habilitations/nouvelle/multiple?apps=${gam}&apps=${dpi}`,
   `/habilitations/nouvelle/${gam}`, '/packs', '/export', '/coffre', '/audit', '/revues',
   '/admin/applications', '/admin/categories', '/admin/ufs', '/admin/sites',
-  '/admin/utilisateurs', '/admin/routage', '/admin/import', '/aide', '/admin/api', '/absences', '/departs', '/approbations', '/admin/packs', '/admin/bibliotheque', '/indicateurs', '/rapprochements',
+  '/admin/utilisateurs', '/admin/routage', '/admin/import', '/aide', '/admin/api', '/admin/configuration', '/admin/configuration?tester=1', '/absences', '/departs', '/approbations', '/admin/packs', '/admin/bibliotheque', '/indicateurs', '/rapprochements',
 ];
 
 const pages = new Map();

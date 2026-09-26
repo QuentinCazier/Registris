@@ -2,6 +2,23 @@
 
 ## 0.4.0
 
+- Installateur Windows : l'assistant règle toute la configuration, sans fichier
+  à modifier ensuite : Active Directory (serveur, compte de service, groupes des
+  rôles, groupes imbriqués, certificat de l'autorité), courriels, délai de
+  relance, durée de conservation, adresse de l'application, en plus de
+  l'établissement, du compte administrateur et du HTTPS. Il reprend au besoin un
+  fichier `registris.env` ou `.env` existant, et permet de modifier la
+  configuration lors d'une mise à jour, pages préremplies.
+- Installation silencieuse depuis un fichier de configuration complet
+  (`/Config=`), aussi pour modifier une installation existante.
+- Contrôle de la configuration en fin d'installation, par
+  `registris verifier-config` et dans la nouvelle page « Administration,
+  Configuration » : compte de service et groupes de l'annuaire, relais de
+  messagerie, certificat HTTPS, dossiers de données.
+- Mode sans HTTPS derrière un reverse-proxy : cookie sécurisé et confiance dans
+  le proxy réglés d'office.
+- Release : la nomenclature logicielle se calcule depuis le fichier de
+  verrouillage, ce qui répare la publication de la 0.4.0.
 - Accès temporaires : une date de fin sur la demande ; à l'échéance, la
   fermeture est demandée d'elle-même au référent. Onglet « Temporaires » au
   registre, alerte sept jours avant sur le tableau de bord, date modifiable et
@@ -28,7 +45,7 @@
 - Entretien horaire assuré par le serveur (`ENTRETIEN_AUTO`), aussi disponible
   par `registris entretien`.
 - Installateur Windows prêt à être signé par SignPath Foundation dès que le
-  secret est configuré (docs/SIGNATURE.md).
+  secret est configuré.
 - Dépendances : Express 5, Nodemailer 10, Archiver 8, ldapts 9.2.
 - Qualité : ESLint et vérification des types (TypeScript sur le JavaScript) en
   intégration continue, `npm run verifier` en local.

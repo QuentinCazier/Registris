@@ -24,7 +24,7 @@ env:
   WINSW_SHA256: 05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da
   INNO_VERSION: 6.7.3
   INNO_SHA256: 9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732
-  # Signature par SignPath Foundation, active dès que le secret existe (docs/SIGNATURE.md).
+  # Signature par SignPath Foundation, active dès que le secret SIGNPATH_API_TOKEN existe.
   SIGNATURE: ${{ secrets.SIGNPATH_API_TOKEN != '' && 'oui' || 'non' }}
 
 jobs:
@@ -131,8 +131,12 @@ jobs:
         timeout-minutes: 10
         run: |
           $env:REGISTRIS_MOT_DE_PASSE = 'Essai-Installateur-2026!'
+          # Une configuration complète reprise d'un fichier, comme une DSI la prépare pour plusieurs serveurs.
+          $reprise = "$PWD\dist\essai.env"
+          [IO.File]::WriteAllLines($reprise, @('NOM_ETABLISSEMENT=CH de Démonstration', 'AUTH_MODE=local', 'SMTP_HOST=smtp.invalide.test', 'SMTP_FROM=registris@exemple.fr',
+            'RELANCE_JOURS=4', 'CONSERVATION_ANNEES=7', 'DB_PATH=D:\ailleurs\ne-doit-pas-servir.db'), (New-Object Text.UTF8Encoding $false))
           $p = Start-Process -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" `
-            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\dist\installation.log", '"/Etablissement=CH Essai"', '/Port=3443', '/Tls=auto'
+            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\dist\installation.log", "`"/Config=$reprise`"", '"/Etablissement=CH Essai"', '/Port=3443', '/Tls=auto'
           if (-not $p.WaitForExit(300000)) { $p | Stop-Process -Force; throw "installateur bloqué depuis 5 minutes" }
           "Code de sortie de l'installateur : $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { throw "installation en échec" }
@@ -153,7 +157,15 @@ jobs:
           $comptes = & "C:\Program Files\Registris\node\node.exe" -e "const {DatabaseSync}=require('node:sqlite');console.log(JSON.stringify(new DatabaseSync('C:/ProgramData/Registris/registris.db',{readOnly:true}).prepare('SELECT login, role FROM utilisateurs').all()))"
           "Comptes : $comptes"
           if ($comptes -notmatch '"login":"admin"') { throw "compte administrateur absent" }
-          if ((Get-Content C:\ProgramData\Registris\registris.env -Raw) -notmatch 'TLS_PFX=') { throw "certificat auto-signé absent de la configuration" }
+          $env_ = Get-Content C:\ProgramData\Registris\registris.env -Raw -Encoding UTF8
+          if ($env_ -notmatch 'TLS_PFX=') { throw "certificat auto-signé absent de la configuration" }
+          foreach ($attendu in 'CONSERVATION_ANNEES=7', 'RELANCE_JOURS=4', 'SMTP_HOST=smtp.invalide.test', 'NOM_ETABLISSEMENT=CH Essai', 'DB_PATH=C:\ProgramData\Registris\registris.db') {
+            if (-not $env_.Contains($attendu)) { throw "configuration reprise incomplète : $attendu absent" }
+          }
+          $verif = Get-Content "C:\Program Files\Registris\installation\windows\verification.txt" -Raw -Encoding UTF8
+          "Contrôle de la configuration :"; $verif
+          if ($verif -notmatch 'ECHEC\s+Courriels') { throw "le relais SMTP injoignable aurait dû être signalé" }
+          if ($verif -notmatch 'OK\s+HTTPS') { throw "le certificat aurait dû être contrôlé" }
           if (-not (Get-NetFirewallRule -DisplayName Registris -ErrorAction SilentlyContinue)) { throw "règle de pare-feu absente" }
 
       - name: Essai de mise à jour et de désinstallation silencieuses
@@ -168,6 +180,20 @@ jobs:
           if ($s.Status -ne 'Running') { throw "service arrêté après la mise à jour" }
           $r = Invoke-WebRequest -SkipCertificateCheck -Uri https://127.0.0.1:3443/sante -TimeoutSec 5
           if ($r.Content -notmatch '"statut":"ok"') { throw "santé en échec après mise à jour" }
+          # Mise à jour qui modifie la configuration : les secrets et le certificat restent.
+          $avant = Get-Content C:\ProgramData\Registris\registris.env -Encoding UTF8 | Where-Object { $_ -like 'SESSION_SECRET=*' -or $_ -like 'TLS_PFX_MOT_DE_PASSE=*' }
+          [IO.File]::WriteAllLines("$PWD\dist\modif.env", @('RELANCE_JOURS=2', 'SMTP_HOST='), (New-Object Text.UTF8Encoding $false))
+          $p = Start-Process -PassThru -FilePath "$PWD\dist\registris-$env:VERSION-installateur.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$PWD\dist\modification.log", "`"/Config=$PWD\dist\modif.env`""
+          if (-not $p.WaitForExit(300000)) { $p | Stop-Process -Force; throw "modification bloquée depuis 5 minutes" }
+          if ($p.ExitCode -ne 0) { throw "modification en échec ($($p.ExitCode))" }
+          $apres = Get-Content C:\ProgramData\Registris\registris.env -Encoding UTF8
+          if ($apres -notcontains 'RELANCE_JOURS=2') { throw "réglage modifié absent" }
+          if ($apres -match '^SMTP_HOST=') { throw "le relais aurait dû être désactivé" }
+          if (Compare-Object $avant ($apres | Where-Object { $_ -like 'SESSION_SECRET=*' -or $_ -like 'TLS_PFX_MOT_DE_PASSE=*' })) { throw "secret ou certificat changé par la modification" }
+          Start-Sleep -Seconds 5
+          $r = Invoke-WebRequest -SkipCertificateCheck -Uri https://127.0.0.1:3443/sante -TimeoutSec 5
+          if ($r.Content -notmatch '"statut":"ok"') { throw "santé en échec après modification" }
+          "Modification de la configuration : correcte, secrets conservés."
           $u = Start-Process -PassThru -FilePath "C:\Program Files\Registris\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
           if (-not $u.WaitForExit(180000)) { $u | Stop-Process -Force; throw "désinstallation bloquée depuis 3 minutes" }
           "Code de sortie de la désinstallation : $($u.ExitCode)"

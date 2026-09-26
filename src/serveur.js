@@ -37,6 +37,7 @@ import { monter as departs } from './routes/departs.js';
 import { monter as approbations } from './routes/approbations.js';
 import { monter as absences } from './routes/absences.js';
 import { monter as adminApi, routeurApi } from './routes/api.js';
+import { monter as configuration } from './routes/configuration.js';
 import { perimetreEffectif } from './suppleances.js';
 import { compterAApprouver } from './accords.js';
 import { departsAConfirmer } from './departs.js';
@@ -46,7 +47,7 @@ const { version: VERSION } = createRequire(import.meta.url)('../package.json');
 // « /habilitations/nouvelle » doit passer avant « /habilitations/:id ».
 const ROUTES = [
   connexion, accueil, traitement, revue, agents, demandes, registre, habilitation, packs, audit, indicateurs,
-  rapprochement, admin, aide, departs, approbations, absences, adminApi,
+  rapprochement, admin, aide, departs, approbations, absences, adminApi, configuration,
 ];
 
 // Seules ces routes lisent un formulaire multipart ; elles vérifient le jeton après multer.

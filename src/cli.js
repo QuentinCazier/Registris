@@ -18,6 +18,7 @@ import { creerApp, ecouter } from './serveur.js';
 import { chargerDemo } from './demo.js';
 import { entretien, planifierEntretien } from './entretien.js';
 import { purger } from './conservation.js';
+import { verifierConfiguration } from './verification.js';
 
 const USAGE = `Usage : registris <commande>
 
@@ -34,6 +35,7 @@ const USAGE = `Usage : registris <commande>
   restaurer <zip> [--verifier] [--forcer]
                                     contrôle une archive, ou la redéploie (application arrêtée)
   tester-ldap <login>               diagnostic pas à pas de la connexion à l'annuaire
+  verifier-config [--json]          contrôle la configuration : données, HTTPS, annuaire, courriels
   demo                              charge le jeu de démonstration (données fictives)`;
 
 const [, , commande, ...argsBruts] = process.argv;
@@ -267,6 +269,14 @@ switch (commande) {
   case 'restaurer':
     restaurerBase();
     break;
+  case 'verifier-config': {
+    initialiserSchema();
+    const resultats = await verifierConfiguration();
+    if (drapeaux.has('--json')) console.log(JSON.stringify(resultats));
+    else for (const x of resultats) console.log(`${{ ok: 'OK       ', attention: 'ATTENTION', echec: 'ECHEC    ' }[x.statut]} ${x.domaine} : ${x.etape}${x.detail ? ` (${x.detail})` : ''}`);
+    process.exit(resultats.some((x) => x.statut === 'echec') ? 2 : 0);
+    break;
+  }
   case 'tester-ldap':
     await testerLdap();
     break;
